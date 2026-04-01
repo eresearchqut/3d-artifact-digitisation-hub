@@ -16,7 +16,7 @@ export class AssetService {
     private readonly dynamoDBClient: DynamoDBClient,
     private readonly s3Client: S3Client,
   ) {
-    this.tableName = this.configService.get<string>('TABLE_NAME') || '3d-hub-assets';
+    this.tableName = this.configService.get<string>('DYNAMODB_TABLE_NAME') || '3d-hub-assets';
   }
 
   async findAll(

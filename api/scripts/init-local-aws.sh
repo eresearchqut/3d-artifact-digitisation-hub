@@ -55,6 +55,66 @@ aws dynamodb create-table \
   --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
   --region us-east-1 > /dev/null 2>&1 || true
 
+# Deploy Lambda Function
+echo "Deploying Lambda function..."
+# Create a dummy execution role
+aws iam create-role \
+  --endpoint-url http://localstack:4566 \
+  --role-name lambda-execution-role \
+  --assume-role-policy-document '{"Version": "2012-10-17","Statement": [{"Action": "sts:AssumeRole","Principal": {"Service": "lambda.amazonaws.com"},"Effect": "Allow","Sid": ""}]}' \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+# Create the Lambda function
+aws lambda create-function \
+  --endpoint-url http://localstack:4566 \
+  --function-name asset-upload-listener \
+  --runtime nodejs20.x \
+  --role arn:aws:iam::000000000000:role/lambda-execution-role \
+  --handler index.handler \
+  --zip-file fileb:///packages/asset-upload-listener/lambda.zip \
+  --environment Variables="{DYNAMODB_ENDPOINT=http://localstack:4566,DYNAMODB_TABLE=test-table,AWS_REGION=us-east-1}" \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+# Grant S3 permission to invoke Lambda
+aws lambda add-permission \
+  --endpoint-url http://localstack:4566 \
+  --function-name asset-upload-listener \
+  --principal s3.amazonaws.com \
+  --statement-id s3invoke \
+  --action "lambda:InvokeFunction" \
+  --source-arn arn:aws:s3:::site-uploads \
+  --source-account 000000000000 \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+# Configure S3 to trigger Lambda
+echo "Configuring S3 Lambda Trigger..."
+cat << 'NOTIFICATION' > /tmp/notification.json
+{
+  "LambdaFunctionConfigurations": [
+    {
+      "LambdaFunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:asset-upload-listener",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            {
+              "Name": "prefix",
+              "Value": "assets/"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+NOTIFICATION
+
+aws s3api put-bucket-notification-configuration \
+  --bucket site-uploads \
+  --notification-configuration file:///tmp/notification.json \
+  --endpoint-url http://localstack:4566 \
+  --region us-east-1 > /dev/null 2>&1 || true
+
 # Create Cognito User Pool
 echo "Creating Cognito User Pool..."
 POOL_ID=$(aws cognito-idp create-user-pool \

@@ -1,10 +1,12 @@
 services:
   localstack:
-    image: localstack/localstack:4.12
+    image: localstack/localstack:4.14
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=s3,dynamodb
+      - SERVICES=s3,dynamodb,lambda,iam
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   cognito-local:
     image: jagregory/cognito-local
@@ -19,6 +21,7 @@ services:
     volumes:
       - ./scripts/init-local-aws.sh:/init-local-aws.sh
       - ./:/workspace
+      - ../packages:/packages
     entrypoint: /bin/sh
     command: /init-local-aws.sh
 volumes:

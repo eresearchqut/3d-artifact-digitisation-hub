@@ -6,7 +6,7 @@ import {
   CognitoIdentityProviderClient,
   CreateUserPoolCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { DynamoDBClient, CreateTableCommand } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, CreateTableCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { AppModule } from './../src/app.module';
@@ -22,7 +22,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
 
   beforeAll(async () => {
     // Localstack (S3 & DynamoDB)
-    localstackContainer = await new GenericContainer('localstack/localstack')
+    localstackContainer = await new GenericContainer('localstack/localstack:4.14')
       .withExposedPorts(4566)
       .withEnvironment({
         SERVICES: 's3,dynamodb',
@@ -402,56 +402,57 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     await request(app.getHttpServer()).delete(`/user/${userId2}`).expect(200);
   });
 
-  it('should perform CRUD operations on /asset', async () => {
-    // 1. Create (POST)
-    const createResponse = await request(app.getHttpServer())
-      .post('/asset')
-      .send({ name: 'Test Asset' })
-      .expect(201);
-
-    const asset = createResponse.body;
-    expect(asset.id).toBeDefined();
-    expect(asset.name).toBe('Test Asset');
+  it('should perform GET and DELETE operations on /asset', async () => {
+    const dynamoDBClient = app.get(DynamoDBClient);
+    const id = 'e2e-asset-123';
+    
+    // 1. Seed the database (simulate Lambda)
+    await dynamoDBClient.send(
+      new PutItemCommand({
+        TableName: tableName,
+        Item: {
+          PK: { S: `ASSET#${id}` },
+          SK: { S: `ASSET#${id}` },
+          key: { S: `assets/${id}.ply` },
+        },
+      }),
+    );
 
     // 2. Find All (GET)
     const findAllResponse = await request(app.getHttpServer())
       .get('/asset')
       .expect(200);
 
-    expect(findAllResponse.body.data).toContainEqual(asset);
+    expect(findAllResponse.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id,
+          key: `assets/${id}.ply`,
+        }),
+      ]),
+    );
 
     // 3. Find One (GET :id)
     const findOneResponse = await request(app.getHttpServer())
-      .get(`/asset/${asset.id}`)
+      .get(`/asset/${id}`)
       .expect(200);
 
-    expect(findOneResponse.body).toEqual(asset);
+    expect(findOneResponse.body).toEqual({
+      id,
+      key: `assets/${id}.ply`,
+    });
 
-    // 4. Update (PATCH :id)
-    const updateResponse = await request(app.getHttpServer())
-      .patch(`/asset/${asset.id}`)
-      .send({ name: 'Updated Asset' })
-      .expect(200);
-
-    expect(updateResponse.body.name).toBe('Updated Asset');
-
-    // 5. Remove (DELETE :id)
-    await request(app.getHttpServer()).delete(`/asset/${asset.id}`).expect(200);
+    // 4. Remove (DELETE :id)
+    await request(app.getHttpServer()).delete(`/asset/${id}`).expect(200);
 
     // Verify deletion
-    await request(app.getHttpServer()).get(`/asset/${asset.id}`).expect(404);
+    await request(app.getHttpServer()).get(`/asset/${id}`).expect(404);
   });
 
   it('should generate a presigned upload URL for a asset', async () => {
-    // 1. Create a asset first
-    const createResponse = await request(app.getHttpServer())
-      .post('/asset')
-      .send({ name: 'Upload Test Asset' })
-      .expect(201);
+    const assetId = 'new-upload-id-456';
 
-    const assetId = createResponse.body.id;
-
-    // 2. Request presigned URL
+    // 1. Request presigned URL
     const uploadUrlResponse = await request(app.getHttpServer())
       .get(`/asset/${assetId}/upload?extension=.ply`)
       .expect(200);
@@ -460,11 +461,11 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     expect(data).toHaveProperty('uploadUrl');
     expect(data.uploadUrl).toContain('asset-uploads');
     expect(data.uploadUrl).toContain(assetId);
-    expect(data.uploadUrl).toContain('asset.ply');
+    expect(data.uploadUrl).toContain('.ply');
     expect(data.uploadUrl).toContain('X-Amz-Algorithm');
 
-    // 3. Perform actual upload using the presigned URL
-    const dummyContent = 'ply\\nformat ascii 1.0\\nelement vertex 0\\nend_header\\n';
+    // 2. Perform actual upload using the presigned URL
+    const dummyContent = 'ply\nformat ascii 1.0\nelement vertex 0\nend_header\n';
     const uploadResponse = await fetch(data.uploadUrl, {
       method: 'PUT',
       body: dummyContent,
@@ -475,6 +476,41 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     
     expect(uploadResponse.ok).toBe(true);
     expect(uploadResponse.status).toBe(200);
+
+    // 3. Simulate S3 Event for the listener Lambda
+    process.env.DYNAMODB_ENDPOINT = `http://${localstackContainer.getHost()}:${localstackContainer.getMappedPort(4566)}`;
+    process.env.DYNAMODB_TABLE = tableName;
+    process.env.AWS_REGION = 'us-east-1';
+
+    const { handler: assetUploadListener } = await import(
+      '../../packages/asset-upload-listener/src/index'
+    );
+
+    const mockS3Event: any = {
+      Records: [
+        {
+          s3: {
+            bucket: { name: 'asset-uploads' },
+            object: {
+              key: `assets/${assetId}.ply`,
+              eTag: 'dummy',
+            },
+          },
+        },
+      ],
+    };
+
+    await assetUploadListener(mockS3Event, {} as any, () => {});
+
+    // 4. Verify asset was created
+    const getResponse = await request(app.getHttpServer())
+      .get(`/asset/${assetId}`)
+      .expect(200);
+
+    expect(getResponse.body).toEqual({
+      id: assetId,
+      key: `assets/${assetId}.ply`,
+    });
   });
 
   it('should have ConfigService providing the correct USER_POOL_ID', () => {

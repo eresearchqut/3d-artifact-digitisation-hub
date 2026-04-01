@@ -5,7 +5,7 @@ import { mockClient } from 'aws-sdk-client-mock';
 
 const dynamoMock = mockClient(DynamoDBClient);
 
-describe('site-upload-listener handler', () => {
+describe('asset-upload-listener handler', () => {
   beforeEach(() => {
     dynamoMock.reset();
   });
@@ -16,7 +16,7 @@ describe('site-upload-listener handler', () => {
         {
           s3: {
             bucket: { name: 'site-uploads', ownerIdentity: { principalId: 'A' }, arn: 'arn' },
-            object: { key: 'site-123/asset.ply', size: 100, eTag: 'test-etag', sequencer: 'a' },
+            object: { key: 'assets/asset-123.ply', size: 100, eTag: 'test-etag', sequencer: 'a' },
             s3SchemaVersion: '1.0',
             configurationId: 'test',
           },
@@ -43,14 +43,13 @@ describe('site-upload-listener handler', () => {
     const item = command.input.Item;
 
     expect(item).toBeDefined();
-    // Item is unmarshalled in tests since it's marshalled internally, wait, we can just check the raw properties in PutItemCommand
-    expect(item?.PK.S).toBe('SITE#site-123');
-    expect(item?.SK.S).toBe('ASSET#test-etag');
+    expect(item?.PK.S).toBe('ASSET#asset-123');
+    expect(item?.SK.S).toBe('ASSET#asset-123');
     expect(item?.bucket.S).toBe('site-uploads');
-    expect(item?.key.S).toBe('site-123/asset.ply');
+    expect(item?.key.S).toBe('assets/asset-123.ply');
   });
 
-  it('should skip objects with keys not containing site ID', async () => {
+  it('should skip objects with keys not containing assets prefix', async () => {
     const event: Partial<S3Event> = {
       Records: [
         {
