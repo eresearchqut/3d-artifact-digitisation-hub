@@ -1,0 +1,25 @@
+services:
+  localstack:
+    image: localstack/localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,dynamodb
+
+  cognito-local:
+    image: jagregory/cognito-local
+    ports:
+      - "9229:9229"
+
+  aws-cli:
+    image: amazon/aws-cli
+    depends_on:
+      - localstack
+      - cognito-local
+    volumes:
+      - ./scripts/init-local-aws.sh:/init-local-aws.sh
+      - ./:/workspace
+    entrypoint: /bin/sh
+    command: /init-local-aws.sh
+volumes:
+  cognito_data:

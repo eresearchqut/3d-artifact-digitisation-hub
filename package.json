@@ -1,0 +1,24 @@
+{
+  "name": "3d-artifact-digitisation-hub",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "concurrently 'npm run start --workspace=@3d-hub/management-frontend' 'npm run start --workspace=@3d-hub/management-api'",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e --workspaces --if-present",
+    "storybook": "npm run storybook --workspace=@3d-hub/management-frontend"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "concurrently": "^9.2.1"
+  },
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "api",
+    "infra"
+  ]
+}

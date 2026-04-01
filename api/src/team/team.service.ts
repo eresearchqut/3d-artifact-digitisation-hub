@@ -1,0 +1,204 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import {
+  CognitoIdentityProviderClient,
+  CreateGroupCommand,
+  DeleteGroupCommand,
+  AdminAddUserToGroupCommand,
+  AdminRemoveUserFromGroupCommand,
+  ListGroupsCommand,
+  GetGroupCommand,
+  UpdateGroupCommand,
+  ListUsersInGroupCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
+import { Team } from './team.model';
+import { User } from '../user/user.model';
+import { UserService } from '../user/user.service';
+import { PaginatedResponse } from '../utils/pagination.model';
+
+@Injectable()
+export class TeamService {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly cognitoClient: CognitoIdentityProviderClient,
+    private readonly userService: UserService,
+  ) {}
+
+  async create(team: Team): Promise<Team> {
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+
+    const response = await this.cognitoClient.send(
+      new CreateGroupCommand({
+        UserPoolId: userPoolId,
+        GroupName: team.name,
+        Description: team.description,
+      }),
+    );
+
+    const {
+      Group: { GroupName, Description },
+    } = response;
+
+    return {
+      name: GroupName,
+      description: Description,
+    };
+  }
+
+  async findAll(
+    limit = 100,
+    cursor?: string,
+  ): Promise<PaginatedResponse<Team>> {
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+
+    const response = await this.cognitoClient.send(
+      new ListGroupsCommand({
+        UserPoolId: userPoolId,
+        Limit: limit,
+        NextToken: cursor,
+      }),
+    );
+
+    const data: Team[] = (response.Groups || []).map((group) => ({
+      name: group.GroupName,
+      description: group.Description,
+    }));
+
+    return {
+      data,
+      pagination: {
+        limit,
+        has_more: !!response.NextToken,
+        next_cursor: response.NextToken,
+      },
+    };
+  }
+
+  async findOne(name: string): Promise<Team> {
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+
+    try {
+      const response = await this.cognitoClient.send(
+        new GetGroupCommand({
+          UserPoolId: userPoolId,
+          GroupName: name,
+        }),
+      );
+
+      return {
+        name: response.Group?.GroupName,
+        description: response.Group?.Description,
+      };
+    } catch (error: any) {
+      if (
+        error.name === 'ResourceNotFoundException' ||
+        error.name === 'GroupNotFoundException'
+      ) {
+        throw new NotFoundException(`Team with id #${name} not found`);
+      }
+      throw error;
+    }
+  }
+
+  async update(name: string, team: Team): Promise<Team> {
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+
+    // Verify it exists
+    await this.findOne(name);
+
+    await this.cognitoClient.send(
+      new UpdateGroupCommand({
+        UserPoolId: userPoolId,
+        GroupName: name,
+        Description: team.description,
+      }),
+    );
+
+    return this.findOne(name);
+  }
+
+  async remove(id: string): Promise<void> {
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+
+    await this.findOne(id);
+
+    await this.cognitoClient.send(
+      new DeleteGroupCommand({
+        UserPoolId: userPoolId,
+        GroupName: id,
+      }),
+    );
+  }
+
+  async addUser(name: string, userId: string): Promise<void> {
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+
+    // Ensure team exists
+    await this.findOne(name);
+
+    // Ensure user exists
+    const user = await this.userService.findOne(userId);
+
+    await this.cognitoClient.send(
+      new AdminAddUserToGroupCommand({
+        UserPoolId: userPoolId,
+        GroupName: name,
+        Username: user.id,
+      }),
+    );
+  }
+
+  async removeUser(name: string, userId: string): Promise<void> {
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+
+    // Ensure team exists
+    await this.findOne(name);
+
+    // Ensure user exists
+    const user = await this.userService.findOne(userId);
+
+    await this.cognitoClient.send(
+      new AdminRemoveUserFromGroupCommand({
+        UserPoolId: userPoolId,
+        GroupName: name,
+        Username: user.id,
+      }),
+    );
+  }
+
+  async listUsers(
+    teamId: string,
+    limit: number = 100,
+    cursor?: string,
+  ): Promise<PaginatedResponse<User>> {
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+    await this.findOne(teamId);
+
+    const response = await this.cognitoClient.send(
+      new ListUsersInGroupCommand({
+        UserPoolId: userPoolId,
+        GroupName: teamId,
+        Limit: limit,
+        NextToken: cursor,
+      }),
+    );
+
+    const data = (response.Users || []).map((u) => {
+      const emailAttr = u.Attributes?.find((a) => a.Name === 'email');
+      return {
+        id: u.Username,
+        email: emailAttr?.Value || '',
+        cognitoUsername: u.Username,
+      } as User;
+    });
+
+    return {
+      data,
+      pagination: {
+        limit,
+        has_more: !!response.NextToken,
+        next_cursor: response.NextToken,
+      },
+    };
+  }
+}

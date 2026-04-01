@@ -1,0 +1,49 @@
+{
+  "app": "npx ts-node --prefer-ts-node bin/infra.ts",
+  "watch": {
+    "include": ["**"],
+    "exclude": [
+      "README.md",
+      "cdk.json",
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json",
+      "src/**/*.js",
+      "src/**/*.d.ts",
+      "test/**/*.js",
+      "test/**/*.d.ts",
+      "node_modules"
+    ]
+  },
+  "context": {
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/core:stackRelativeExports": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:validateGenericEntities": true,
+    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true,
+    "@aws-cdk/aws-sns-subscriptions:restrictSnsRolePolicy": true,
+    "@aws-cdk/aws-cloudfront:defaultRootObjectInEdgeFunctions": true,
+    "@aws-cdk/aws-rds:lowercaseDbIdentifier": true,
+    "@aws-cdk/core:includePrefixInUniqueNameGeneration": true,
+    "@aws-cdk/aws-ec2:uniqueImdsTokenRequirement": true,
+    "@aws-cdk/aws-ecs:arnFormatIncludesClusterName": true,
+    "@aws-cdk/aws-iam:standardizedServicePrincipals": true,
+    "@aws-cdk/aws-kms:aliasNameRef": true,
+    "@aws-cdk/aws-redshift:columnId": true,
+    "@aws-cdk/aws-stepfunctions-tasks:enableReplaceUntitledStepFunctionServiceRole": true,
+    "@aws-cdk/aws-codepipeline:crossAccountKeyAliasStackSafeResourceName": true,
+    "@aws-cdk/aws-s3:enableMinimumTLSv12": true,
+    "@aws-cdk/aws-kms:reduceRequiredPermissions": true,
+    "@aws-cdk/aws-secretsmanager:useAttachedSecretResourcePolicyLimit": true,
+    "@aws-cdk/aws-redshift:integratedManagedLib": true,
+    "@aws-cdk/aws-lookup-role-ads:poll": true,
+    "@aws-cdk/aws-iam:minimizePolicies-2": true,
+    "@aws-cdk/aws-lambda:recognizeLayerVersion-2": true,
+    "@aws-cdk/aws-ec2:launchTemplateDefaultVersion": true,
+    "@aws-cdk/aws-route53-targets:sdkv3-route53-targets": true,
+    "@aws-cdk/aws-s3:serverAccessLogsUseBucketPolicy": true,
+    "@aws-cdk/aws-lambda:adotRuntimeLayerArnFormat": true,
+    "@aws-cdk/aws-lambda-nodejs:useLatestRuntimeVersion": true
+  }
+}
