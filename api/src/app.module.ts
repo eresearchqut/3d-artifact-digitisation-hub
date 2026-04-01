@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { OrganisationModule } from './organisation/organisation.module';
 import { TeamModule } from './team/team.module';
 import { UserModule } from './user/user.module';
-import { SiteModule } from './site/site.module';
+import { AssetModule } from './asset/asset.module';
 import { ClientModule } from './client/client.module';
 import { AppConfigModule } from './config/config.module';
 
@@ -17,7 +17,7 @@ import { AppConfigModule } from './config/config.module';
     OrganisationModule,
     TeamModule,
     UserModule,
-    SiteModule,
+    AssetModule,
     AppConfigModule,
   ],
   controllers: [],

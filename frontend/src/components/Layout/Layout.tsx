@@ -16,7 +16,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSignOut }) => {
     { to: '/organisation', label: 'Organisations', icon: Building2 },
     { to: '/team', label: 'Teams', icon: Users },
     { to: '/user', label: 'Users', icon: UserCircle },
-    { to: '/site', label: 'Sites', icon: Globe },
+    { to: '/asset', label: 'Assets', icon: Globe },
   ];
 
   return (

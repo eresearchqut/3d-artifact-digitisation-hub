@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { SiteService } from './site.service';
-import { SiteController } from './site.controller';
+import { AssetService } from './asset.service';
+import { AssetController } from './asset.controller';
 import { ClientModule } from '../client/client.module';
 
 @Module({
   imports: [ConfigModule, ClientModule],
-  controllers: [SiteController],
-  providers: [SiteService],
+  controllers: [AssetController],
+  providers: [AssetService],
 })
-export class SiteModule {}
+export class AssetModule {}

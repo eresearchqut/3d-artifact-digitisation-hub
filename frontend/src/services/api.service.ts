@@ -1,4 +1,4 @@
-import { Organisation, PaginatedResponse, Site, Team, User } from './types';
+import { Organisation, PaginatedResponse, Asset, Team, User } from './types';
 
 const BASE_URL: string = import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:3000';
 
@@ -75,14 +75,12 @@ export const teamService = {
     request<void>(`/team/${id}/user/${userId}`, { method: 'DELETE' }),
 };
 
-export const siteService = {
-  findAll: (limit: number = 10, cursor?: string): Promise<PaginatedResponse<Site>> =>
-    request<PaginatedResponse<Site>>(`/site?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
-  findOne: (id: string): Promise<Site> => request<Site>(`/site/${id}`),
-  create: (data: Partial<Site>): Promise<Site> =>
-    request<Site>('/site', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: Partial<Site>): Promise<Site> =>
-    request<Site>(`/site/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  remove: (id: string): Promise<void> => request<void>(`/site/${id}`, { method: 'DELETE' }),
-  generateUploadUrl: (id: string, extension: string): Promise<{ uploadUrl: string }> => request<{ uploadUrl: string }>(`/site/${id}/upload?extension=${extension}`),
+export const assetService = {
+  findAll: (limit: number = 10, cursor?: string): Promise<PaginatedResponse<Asset>> =>
+    request<PaginatedResponse<Asset>>(`/asset?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  findOne: (id: string): Promise<Asset> => request<Asset>(`/asset/${id}`),
+  update: (id: string, data: Partial<Asset>): Promise<Asset> =>
+    request<Asset>(`/asset/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  remove: (id: string): Promise<void> => request<void>(`/asset/${id}`, { method: 'DELETE' }),
+  generateUploadUrl: (id: string, extension: string): Promise<{ uploadUrl: string }> => request<{ uploadUrl: string }>(`/asset/${id}/upload?extension=${extension}`),
 };

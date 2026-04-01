@@ -75,7 +75,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     try {
       await tempS3Client.send(
         new CreateBucketCommand({
-          Bucket: 'site-uploads',
+          Bucket: 'asset-uploads',
         }),
       );
     } catch (err) {
@@ -122,7 +122,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
             AWS_SECRET_ACCESS_KEY: 'test',
             USER_POOL_ID: userPoolId,
             DYNAMODB_TABLE_NAME: tableName,
-            S3_UPLOAD_BUCKET: 'site-uploads',
+            S3_UPLOAD_BUCKET: 'asset-uploads',
           };
           return config[key];
         }),
@@ -402,64 +402,64 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     await request(app.getHttpServer()).delete(`/user/${userId2}`).expect(200);
   });
 
-  it('should perform CRUD operations on /site', async () => {
+  it('should perform CRUD operations on /asset', async () => {
     // 1. Create (POST)
     const createResponse = await request(app.getHttpServer())
-      .post('/site')
-      .send({ name: 'Test Site' })
+      .post('/asset')
+      .send({ name: 'Test Asset' })
       .expect(201);
 
-    const site = createResponse.body;
-    expect(site.id).toBeDefined();
-    expect(site.name).toBe('Test Site');
+    const asset = createResponse.body;
+    expect(asset.id).toBeDefined();
+    expect(asset.name).toBe('Test Asset');
 
     // 2. Find All (GET)
     const findAllResponse = await request(app.getHttpServer())
-      .get('/site')
+      .get('/asset')
       .expect(200);
 
-    expect(findAllResponse.body.data).toContainEqual(site);
+    expect(findAllResponse.body.data).toContainEqual(asset);
 
     // 3. Find One (GET :id)
     const findOneResponse = await request(app.getHttpServer())
-      .get(`/site/${site.id}`)
+      .get(`/asset/${asset.id}`)
       .expect(200);
 
-    expect(findOneResponse.body).toEqual(site);
+    expect(findOneResponse.body).toEqual(asset);
 
     // 4. Update (PATCH :id)
     const updateResponse = await request(app.getHttpServer())
-      .patch(`/site/${site.id}`)
-      .send({ name: 'Updated Site' })
+      .patch(`/asset/${asset.id}`)
+      .send({ name: 'Updated Asset' })
       .expect(200);
 
-    expect(updateResponse.body.name).toBe('Updated Site');
+    expect(updateResponse.body.name).toBe('Updated Asset');
 
     // 5. Remove (DELETE :id)
-    await request(app.getHttpServer()).delete(`/site/${site.id}`).expect(200);
+    await request(app.getHttpServer()).delete(`/asset/${asset.id}`).expect(200);
 
     // Verify deletion
-    await request(app.getHttpServer()).get(`/site/${site.id}`).expect(404);
+    await request(app.getHttpServer()).get(`/asset/${asset.id}`).expect(404);
   });
 
-  it('should generate a presigned upload URL for a site', async () => {
-    // 1. Create a site first
+  it('should generate a presigned upload URL for a asset', async () => {
+    // 1. Create a asset first
     const createResponse = await request(app.getHttpServer())
-      .post('/site')
-      .send({ name: 'Upload Test Site' })
+      .post('/asset')
+      .send({ name: 'Upload Test Asset' })
       .expect(201);
 
-    const siteId = createResponse.body.id;
+    const assetId = createResponse.body.id;
 
     // 2. Request presigned URL
     const uploadUrlResponse = await request(app.getHttpServer())
-      .get(`/site/${siteId}/upload?extension=.ply`)
+      .get(`/asset/${assetId}/upload?extension=.ply`)
       .expect(200);
 
     const data = uploadUrlResponse.body;
     expect(data).toHaveProperty('uploadUrl');
-    expect(data.uploadUrl).toContain('site-uploads');
-    expect(data.uploadUrl).toContain(siteId);
+    expect(data.uploadUrl).toContain('asset-uploads');
+    expect(data.uploadUrl).toContain(assetId);
     expect(data.uploadUrl).toContain('asset.ply');
     expect(data.uploadUrl).toContain('X-Amz-Algorithm');
 

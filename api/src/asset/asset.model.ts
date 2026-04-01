@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class Site {
+export class Asset {
   @ApiProperty()
   id: string;
-  @ApiProperty({ required: false })
-  name?: string;
+  @ApiProperty()
+  key: string;
 }

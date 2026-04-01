@@ -24,7 +24,7 @@ export interface User {
   email: string;
 }
 
-export interface Site {
+export interface Asset {
   id: string;
-  name: string;
+  key: string;
 }

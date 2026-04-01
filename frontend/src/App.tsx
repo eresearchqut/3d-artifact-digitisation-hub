@@ -12,8 +12,8 @@ import { OrganisationDetailPage } from './pages/OrganisationDetailPage';
 import { UserListPage } from './pages/UserListPage';
 import { TeamListPage } from './pages/TeamListPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
-import { SiteListPage } from './pages/SiteListPage';
-import { SiteDetailPage } from './pages/SiteDetailPage';
+import { AssetListPage } from './pages/AssetListPage';
+import { AssetDetailPage } from './pages/AssetDetailPage';
 
 const queryClient: QueryClient = new QueryClient();
 
@@ -91,8 +91,8 @@ function App() {
               <Route path="/team" element={<TeamListPage />} />
               <Route path="/team/:id" element={<TeamDetailPage />} />
               <Route path="/user" element={<UserListPage />} />
-              <Route path="/site" element={<SiteListPage />} />
-              <Route path="/site/:id" element={<SiteDetailPage />} />
+              <Route path="/asset" element={<AssetListPage />} />
+              <Route path="/asset/:id" element={<AssetDetailPage />} />
             </Routes>
           </Layout>
         )}

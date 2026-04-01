@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { siteService } from '../services/api.service';
+import { assetService } from '../services/api.service';
 import { ArrowLeft, Globe } from 'lucide-react';
 import { Heading, Flex, Box, Stack, Text } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
 
-export const SiteDetailPage: React.FC = () => {
+export const AssetDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  const { data: site, isLoading, error } = useQuery({
-    queryKey: ['site', id],
-    queryFn: () => siteService.findOne(id!),
+  const { data: asset, isLoading, error } = useQuery({
+    queryKey: ['asset', id],
+    queryFn: () => assetService.findOne(id!),
     enabled: !!id,
   });
 
@@ -40,7 +40,7 @@ export const SiteDetailPage: React.FC = () => {
 
     try {
       // 1. Get presigned URL
-      const { uploadUrl } = await siteService.generateUploadUrl(id, extension);
+      const { uploadUrl } = await assetService.generateUploadUrl(id, extension);
       
       // 2. Upload file
       const response = await fetch(uploadUrl, {
@@ -64,16 +64,16 @@ export const SiteDetailPage: React.FC = () => {
   };
 
   if (isLoading) {
-    return <Box textAlign="center" py={10} color="fg.muted">Loading site details...</Box>;
+    return <Box textAlign="center" py={10} color="fg.muted">Loading asset details...</Box>;
   }
 
-  if (error || !site) {
+  if (error || !asset) {
     return (
       <Box color="red.500" textAlign="center" py={10}>
-        Error loading site details
+        Error loading asset details
         <Box mt={4}>
-          <Link to="/site" className="text-blue-500 hover:underline">
-            Back to Sites
+          <Link to="/asset" className="text-blue-500 hover:underline">
+            Back to Assets
           </Link>
         </Box>
       </Box>
@@ -83,21 +83,21 @@ export const SiteDetailPage: React.FC = () => {
   return (
     <Stack gap={6}>
       <Flex align="center" gap={4}>
-        <Link to="/site" className="text-muted-foreground hover:text-foreground transition-colors">
+        <Link to="/asset" className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-6 w-6" />
         </Link>
         <Flex align="center" gap={3}>
           <Box bg="colorPalette.muted" p={2} borderRadius="md" color="colorPalette.fg">
             <Globe className="h-6 w-6" />
           </Box>
-          <Heading size="2xl" color="fg">{site.name}</Heading>
+          <Heading size="2xl" color="fg">{asset.key}</Heading>
         </Flex>
       </Flex>
 
       <Box bg="bg.panel" p={6} borderRadius="lg" borderWidth="1px" shadow="sm">
         <Heading size="lg" mb={4}>Upload Assets</Heading>
         <Text color="fg.muted" mb={6}>
-          Upload a .ply or .mp3 asset file for this site. This will trigger the site builder process.
+          Upload a .ply or .mp3 asset file for this asset. This will trigger the asset builder process.
         </Text>
         
         <FilePicker 
@@ -114,7 +114,7 @@ export const SiteDetailPage: React.FC = () => {
         )}
         {uploadStatus === 'success' && (
           <Text color="green.500" mt={4} textAlign="center">
-            File uploaded successfully! The site builder will start processing it shortly.
+            File uploaded successfully! The asset builder will start processing it shortly.
           </Text>
         )}
         {uploadStatus === 'error' && (
