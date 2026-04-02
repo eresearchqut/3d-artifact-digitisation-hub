@@ -2,20 +2,25 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { assetService, organisationService } from '../services/api.service';
-import { Plus, Trash2, Globe, Building2 } from 'lucide-react';
+import { Plus, Trash2, Globe, Building2, Info } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Button, HStack, Heading, Flex, Box, Stack, Dialog } from '@chakra-ui/react';
 import { NativeSelect } from '@chakra-ui/react';
 import { Input } from '@chakra-ui/react';
+import { FilePicker } from '../components/FilePicker/FilePicker';
 
 interface Asset {
   id: string;
   key: string;
+  metadata?: Record<string, string>;
 }
 
 export const AssetListPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedAssetMetadata, setSelectedAssetMetadata] = useState<Record<string, string> | null>(null);
 
   const { data: assets, isLoading, error } = useQuery({
     queryKey: ['assets'],
@@ -38,6 +43,47 @@ export const AssetListPage: React.FC = () => {
     if (deleteId) {
       deleteMutation.mutate(deleteId);
       setDeleteId(null);
+    }
+  };
+
+  const handleFileSelect = async (file: File) => {
+    try {
+      setIsUploading(true);
+      const extension = file.name.substring(file.name.lastIndexOf('.'));
+      const id = crypto.randomUUID();
+      const metadata = {
+        filename: file.name,
+        size: file.size.toString(),
+        type: file.type || 'application/octet-stream',
+        lastmodified: file.lastModified.toString()
+      };
+      const { uploadUrl } = await assetService.generateUploadUrl(id, extension, metadata);
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/octet-stream',
+      };
+      // S3 expects metadata headers to be prepended with x-amz-meta-
+      Object.entries(metadata).forEach(([k, v]) => {
+        headers[`x-amz-meta-${k}`] = v;
+      });
+
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers,
+      });
+
+      // Let S3 upload trigger the Lambda and update DynamoDB.
+      // Wait a brief moment to let DynamoDB update before refreshing.
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['assets'] });
+        setIsUploading(false);
+        setIsUploadOpen(false);
+      }, 1000);
+    } catch (err) {
+      console.error('Upload failed', err);
+      setIsUploading(false);
+      setIsUploadOpen(false);
     }
   };
 
@@ -65,6 +111,14 @@ export const AssetListPage: React.FC = () => {
       cellClassName: 'text-right',
       render: (asset) => (
         <HStack justify="flex-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedAssetMetadata(asset.metadata || {})}
+          >
+            <Info />
+            Metadata
+          </Button>
           <Link to={`/asset/${asset.id}`}>
             <Button variant="ghost" size="sm">
               <Globe />
@@ -92,6 +146,10 @@ export const AssetListPage: React.FC = () => {
     <Stack gap={6}>
       <Flex justify="space-between" align="center">
         <Heading size="2xl" color="fg">Assets</Heading>
+        <Button onClick={() => setIsUploadOpen(true)}>
+          <Plus />
+          Upload Asset
+        </Button>
       </Flex>
 
 
@@ -121,6 +179,68 @@ export const AssetListPage: React.FC = () => {
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button colorPalette="red" onClick={confirmDelete}>Delete</Button>
             </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+
+      {/* Upload Asset Dialog */}
+      <Dialog.Root open={isUploadOpen} onOpenChange={(e: any) => !e.open && !isUploading && setIsUploadOpen(false)}>
+        <Dialog.Backdrop />
+        {/* @ts-ignore */}
+        <Dialog.Positioner>
+          {/* @ts-ignore */}
+          <Dialog.Content>
+            <Dialog.CloseTrigger />
+            <Dialog.Header>
+              {/* @ts-ignore */}
+              <Dialog.Title>Upload Asset</Dialog.Title>
+            </Dialog.Header>
+            <Dialog.Body>
+              {isUploading ? (
+                <Box textAlign="center" py={4}>Uploading...</Box>
+              ) : (
+                <FilePicker onFileSelect={handleFileSelect} accept=".ply,.spz,.splat,.sog" />
+              )}
+            </Dialog.Body>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+      {/* Metadata Dialog */}
+      <Dialog.Root open={selectedAssetMetadata !== null} onOpenChange={(e: any) => !e.open && setSelectedAssetMetadata(null)}>
+        <Dialog.Backdrop />
+        {/* @ts-ignore */}
+        <Dialog.Positioner>
+          {/* @ts-ignore */}
+          <Dialog.Content>
+            <Dialog.CloseTrigger />
+            <Dialog.Header>
+              {/* @ts-ignore */}
+              <Dialog.Title>Asset Metadata</Dialog.Title>
+            </Dialog.Header>
+            <Dialog.Body>
+              {selectedAssetMetadata && Object.keys(selectedAssetMetadata).length > 0 ? (
+                <Box overflowX="auto">
+                  <table className="w-full text-sm text-left border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="py-2 font-medium">Key</th>
+                        <th className="py-2 font-medium">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(selectedAssetMetadata).map(([k, v]) => (
+                        <tr key={k} className="border-b last:border-0">
+                          <td className="py-2 pr-4 text-muted-foreground">{k}</td>
+                          <td className="py-2">{v}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Box>
+              ) : (
+                <Box py={4}>No metadata available.</Box>
+              )}
+            </Dialog.Body>
           </Dialog.Content>
         </Dialog.Positioner>
       </Dialog.Root>

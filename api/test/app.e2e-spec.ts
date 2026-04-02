@@ -454,8 +454,9 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
 
     // 1. Request presigned URL
     const uploadUrlResponse = await request(app.getHttpServer())
-      .get(`/asset/${assetId}/upload?extension=.ply`)
-      .expect(200);
+      .post(`/asset/${assetId}/upload?extension=.ply`)
+      .send({ metadata: { filename: 'test.ply' } })
+      .expect(201);
 
     const data = uploadUrlResponse.body;
     expect(data).toHaveProperty('uploadUrl');

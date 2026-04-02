@@ -29,9 +29,10 @@ export const AssetDetailPage: React.FC = () => {
     
     // Check file extension
     const extension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    if (extension !== '.ply' && extension !== '.mp3') {
+    const supportedExtensions = ['.ply', '.spz', '.splat', '.sog'];
+    if (!supportedExtensions.includes(extension)) {
       setUploadStatus('error');
-      setErrorMessage('Unsupported file extension. Only .ply and .mp3 are supported.');
+      setErrorMessage('Unsupported file extension. Only .ply, .spz, .splat, and .sog are supported.');
       return;
     }
 
@@ -97,14 +98,14 @@ export const AssetDetailPage: React.FC = () => {
       <Box bg="bg.panel" p={6} borderRadius="lg" borderWidth="1px" shadow="sm">
         <Heading size="lg" mb={4}>Upload Assets</Heading>
         <Text color="fg.muted" mb={6}>
-          Upload a .ply or .mp3 asset file for this asset. This will trigger the asset builder process.
+          Upload a .ply, .spz, .splat, or .sog asset file for this asset. This will trigger the asset builder process.
         </Text>
         
         <FilePicker 
           onFileSelect={handleFileSelect} 
-          accept=".ply,.mp3"
-          label="Upload .ply or .mp3 file"
-          helperText="Drag and drop a .ply or .mp3 file here, or click to select (Max 500MB)"
+          accept=".ply,.spz,.splat,.sog"
+          label="Upload 3DGS file"
+          helperText="Drag and drop a .ply, .spz, .splat, or .sog file here, or click to select (Max 500MB)"
         />
 
         {uploadStatus === 'uploading' && (

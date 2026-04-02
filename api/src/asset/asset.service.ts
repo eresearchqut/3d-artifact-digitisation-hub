@@ -94,9 +94,10 @@ export class AssetService {
     await this.dynamoDBClient.send(command);
   }
 
-  async generateUploadUrl(id: string, extension: string): Promise<{ uploadUrl: string }> {
-    if (extension !== '.ply' && extension !== '.mp3') {
-      throw new BadRequestException('Unsupported file extension. Only .ply and .mp3 are supported.');
+  async generateUploadUrl(id: string, extension: string, metadata?: Record<string, string>): Promise<{ uploadUrl: string }> {
+    const supportedExtensions = ['.ply', '.spz', '.splat', '.sog'];
+    if (!supportedExtensions.includes(extension)) {
+      throw new BadRequestException('Unsupported file extension. Only .ply, .spz, .splat, and .sog are supported.');
     }
 
     const bucketName = this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
@@ -104,6 +105,7 @@ export class AssetService {
       Bucket: bucketName,
       Key: `assets/${id}${extension}`,
       ContentType: 'application/octet-stream',
+      ...(metadata && Object.keys(metadata).length > 0 && { Metadata: metadata }),
     });
 
     const uploadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });

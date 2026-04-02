@@ -1,6 +1,9 @@
 import { S3Event, Context, S3Handler } from 'aws-lambda';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
+import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { marshall } from '@aws-sdk/util-dynamodb';
+
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1', endpoint: process.env.S3_ENDPOINT || undefined, forcePathStyle: true });
 
 const dynamoClient = new DynamoDBClient({
   endpoint: process.env.DYNAMODB_ENDPOINT || undefined,
@@ -25,6 +28,19 @@ export const handler: S3Handler = async (event: S3Event, context: Context): Prom
     const filename = parts[1];
     const assetId = filename.split('.')[0];
 
+    let metadata = {};
+    try {
+      const headObj = await s3Client.send(new HeadObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      }));
+      if (headObj.Metadata) {
+        metadata = headObj.Metadata;
+      }
+    } catch (e) {
+      console.error(`Failed to fetch metadata for ${key}`, e);
+    }
+
     const item = {
       PK: `ASSET#${assetId}`,
       SK: `ASSET#${assetId}`,
@@ -32,6 +48,7 @@ export const handler: S3Handler = async (event: S3Event, context: Context): Prom
       key,
       name: filename,
       uploadedAt: new Date().toISOString(),
+      metadata,
     };
 
     try {

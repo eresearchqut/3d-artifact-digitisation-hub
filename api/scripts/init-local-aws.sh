@@ -86,6 +86,12 @@ aws lambda add-permission \
   --source-account 000000000000 \
   --region us-east-1 > /dev/null 2>&1 || true
 
+echo "Waiting for Lambda function to become active..."
+aws lambda wait function-active-v2 \
+  --endpoint-url http://localstack:4566 \
+  --function-name asset-upload-listener \
+  --region us-east-1 > /dev/null 2>&1 || true
+
 # Configure S3 to trigger Lambda
 echo "Configuring S3 Lambda Trigger..."
 cat << 'NOTIFICATION' > /tmp/notification.json

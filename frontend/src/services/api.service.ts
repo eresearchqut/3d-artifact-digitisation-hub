@@ -82,5 +82,6 @@ export const assetService = {
   update: (id: string, data: Partial<Asset>): Promise<Asset> =>
     request<Asset>(`/asset/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   remove: (id: string): Promise<void> => request<void>(`/asset/${id}`, { method: 'DELETE' }),
-  generateUploadUrl: (id: string, extension: string): Promise<{ uploadUrl: string }> => request<{ uploadUrl: string }>(`/asset/${id}/upload?extension=${extension}`),
+  generateUploadUrl: (id: string, extension: string, metadata?: Record<string, string>): Promise<{ uploadUrl: string }> => 
+    request<{ uploadUrl: string }>(`/asset/${id}/upload?extension=${extension}`, { method: 'POST', body: JSON.stringify({ metadata }) }),
 };
