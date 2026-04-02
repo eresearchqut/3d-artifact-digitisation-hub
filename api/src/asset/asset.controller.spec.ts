@@ -32,7 +32,10 @@ describe('AssetController', () => {
 
   describe('findAll', () => {
     it('should return an array of assets', async () => {
-      const result = { data: [{ id: '1', key: 'assets/1.ply' }], pagination: { limit: 100, has_more: false, next_cursor: null } };
+      const result = {
+        data: [{ id: '1', key: 'assets/1.ply' }],
+        pagination: { limit: 100, has_more: false, next_cursor: null },
+      };
       jest.spyOn(service, 'findAll').mockResolvedValue(result);
 
       expect(await controller.findAll()).toBe(result);
@@ -55,12 +58,16 @@ describe('AssetController', () => {
       expect(await controller.remove('1')).toBeUndefined();
     });
   });
-  
+
   describe('generateUploadUrl', () => {
     it('should return an upload url', async () => {
-      jest.spyOn(service, 'generateUploadUrl').mockResolvedValue({ uploadUrl: 'http://test.com', id: '1' });
+      jest
+        .spyOn(service, 'generateUploadUrl')
+        .mockResolvedValue({ uploadUrl: 'http://test.com', id: '1' });
 
-      expect(await controller.generateUploadUrl({ metadata: { name: 'test.ply' } })).toEqual({ uploadUrl: 'http://test.com', id: '1' });
+      expect(
+        await controller.generateUploadUrl({ metadata: { name: 'test.ply' } }),
+      ).toEqual({ uploadUrl: 'http://test.com', id: '1' });
     });
   });
 });

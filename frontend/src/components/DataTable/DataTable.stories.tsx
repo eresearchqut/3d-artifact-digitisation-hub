@@ -1,5 +1,4 @@
 // @ts-ignore
-import type { Meta, StoryObj } from '@storybook/react';
 import { DataTable } from './DataTable';
 
 const meta = {
@@ -12,8 +11,6 @@ const meta = {
 }; // @ts-ignore
 export default meta;
 
-// @ts-ignore
-type Story = StoryObj<typeof meta>;
 
 interface User {
   id: string;

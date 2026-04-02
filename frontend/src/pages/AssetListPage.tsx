@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { assetService, organisationService } from '../services/api.service';
-import { Plus, Trash2, Globe, Building2, Info } from 'lucide-react';
+import { assetService } from '../services/api.service';
+import { Plus, Trash2, Globe, Info } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Spinner } from '@chakra-ui/react';
-import { NativeSelect } from '@chakra-ui/react';
-import { Input } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
 
 interface Asset {
@@ -100,21 +98,6 @@ export const AssetListPage: React.FC = () => {
 
   const columns: Column<Asset>[] = [
     { key: 'id', header: 'ID', cellClassName: 'text-muted-foreground font-mono text-xs' },
-    {
-      key: 'key',
-      header: 'Asset',
-      cellClassName: 'font-medium text-foreground',
-      render: (asset) => (
-        <Link to={`/asset/${asset.id}`} className="hover:underline">
-          <Flex align="center" gap={3}>
-            <Box bg="colorPalette.muted" p={1.5} borderRadius="md" color="colorPalette.fg">
-              <Globe className="h-4 w-4" />
-            </Box>
-            <span>{asset.key}</span>
-          </Flex>
-        </Link>
-      ),
-    },
     {
       key: 'actions',
       header: 'Actions',

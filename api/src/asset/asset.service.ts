@@ -1,7 +1,16 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import { DynamoDBClient, GetItemCommand, DeleteItemCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBClient,
+  GetItemCommand,
+  DeleteItemCommand,
+  ScanCommand,
+} from '@aws-sdk/client-dynamodb';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
@@ -17,7 +26,8 @@ export class AssetService {
     private readonly dynamoDBClient: DynamoDBClient,
     private readonly s3Client: S3Client,
   ) {
-    this.tableName = this.configService.get<string>('DYNAMODB_TABLE_NAME') || '3d-hub-assets';
+    this.tableName =
+      this.configService.get<string>('DYNAMODB_TABLE_NAME') || '3d-hub-assets';
   }
 
   async findAll(
@@ -28,10 +38,12 @@ export class AssetService {
     // A better approach would be to use a GSI or query if the partition key is known.
     const command = new ScanCommand({
       TableName: this.tableName,
-      FilterExpression: "begins_with(PK, :prefix)",
-      ExpressionAttributeValues: marshall({ ":prefix": "ASSET#" }),
+      FilterExpression: 'begins_with(PK, :prefix)',
+      ExpressionAttributeValues: marshall({ ':prefix': 'ASSET#' }),
       Limit: limit,
-      ExclusiveStartKey: cursor ? JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8')) : undefined,
+      ExclusiveStartKey: cursor
+        ? JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8'))
+        : undefined,
     });
 
     const response = await this.dynamoDBClient.send(command);
@@ -47,7 +59,9 @@ export class AssetService {
 
     let next_cursor = null;
     if (response.LastEvaluatedKey) {
-      next_cursor = Buffer.from(JSON.stringify(response.LastEvaluatedKey)).toString('base64');
+      next_cursor = Buffer.from(
+        JSON.stringify(response.LastEvaluatedKey),
+      ).toString('base64');
     }
 
     return {
@@ -80,7 +94,7 @@ export class AssetService {
     };
   }
 
-  async update(id: string, asset: Asset): Promise<Asset> {
+  async update(id: string): Promise<Asset> {
     // Assets do not have updatable attributes right now besides key which comes from S3
     // But keeping the interface for compatibility
     return this.findOne(id);
@@ -97,23 +111,33 @@ export class AssetService {
     await this.dynamoDBClient.send(command);
   }
 
-  async generateUploadUrl(metadata?: Record<string, string>): Promise<{ uploadUrl: string, id: string }> {
+  async generateUploadUrl(
+    metadata?: Record<string, string>,
+  ): Promise<{ uploadUrl: string; id: string }> {
     const id = randomUUID();
     const supportedExtensions = ['.ply', '.spz', '.splat', '.sog'];
-    const extension = metadata?.name ? '.' + metadata.name.split('.').pop()?.toLowerCase() : '';
+    const extension = metadata?.name
+      ? '.' + metadata.name.split('.').pop()?.toLowerCase()
+      : '';
     if (!supportedExtensions.includes(extension)) {
-      throw new BadRequestException('Unsupported file extension. Only .ply, .spz, .splat, and .sog are supported.');
+      throw new BadRequestException(
+        'Unsupported file extension. Only .ply, .spz, .splat, and .sog are supported.',
+      );
     }
 
-    const bucketName = this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
+    const bucketName =
+      this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
     const command = new PutObjectCommand({
       Bucket: bucketName,
       Key: `assets/${id}`,
       ContentType: 'application/octet-stream',
-      ...(metadata && Object.keys(metadata).length > 0 && { Metadata: metadata }),
+      ...(metadata &&
+        Object.keys(metadata).length > 0 && { Metadata: metadata }),
     });
 
-    const uploadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
+    const uploadUrl = await getSignedUrl(this.s3Client, command, {
+      expiresIn: 3600,
+    });
     return { uploadUrl, id };
   }
 }

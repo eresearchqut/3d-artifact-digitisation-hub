@@ -20,7 +20,6 @@ import {
 export class AssetController {
   constructor(private readonly assetService: AssetService) {}
 
-
   @Get()
   @ApiOperation({ summary: 'Get all assets' })
   @ApiPaginatedResponse(Asset)
@@ -51,7 +50,12 @@ export class AssetController {
 
   @Post('upload')
   @ApiOperation({ summary: 'Get presigned upload URL for asset' })
-  @ApiQuery({ name: 'extension', required: true, type: String, description: 'File extension (e.g., .ply, .spz, .splat, .sog)' })
+  @ApiQuery({
+    name: 'extension',
+    required: true,
+    type: String,
+    description: 'File extension (e.g., .ply, .spz, .splat, .sog)',
+  })
   @ApiResponse({ status: 200, description: 'Presigned URL generated' })
   @ApiResponse({ status: 404, description: 'Asset not found' })
   generateUploadUrl(@Body() body?: { metadata?: Record<string, string> }) {

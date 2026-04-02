@@ -1,4 +1,4 @@
-import { S3Event, Context, S3Handler } from 'aws-lambda';
+import { S3Event, S3Handler } from 'aws-lambda';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { marshall } from '@aws-sdk/util-dynamodb';
@@ -10,13 +10,12 @@ const dynamoClient = new DynamoDBClient({
   region: process.env.AWS_REGION || 'us-east-1',
 });
 
-export const handler: S3Handler = async (event: S3Event, context: Context): Promise<void> => {
+export const handler: S3Handler = async (event: S3Event): Promise<void> => {
   console.log(`Received event: ${JSON.stringify(event)}`);
 
   for (const record of event.Records) {
     const bucket = record.s3.bucket.name;
     const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
-    const eTag = record.s3.object.eTag;
     
     // Key format expected: assets/{asset_id}
     const parts = key.split('/');

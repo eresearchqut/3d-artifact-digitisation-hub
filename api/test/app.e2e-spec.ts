@@ -6,7 +6,11 @@ import {
   CognitoIdentityProviderClient,
   CreateUserPoolCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { DynamoDBClient, CreateTableCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBClient,
+  CreateTableCommand,
+  PutItemCommand,
+} from '@aws-sdk/client-dynamodb';
 import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { AppModule } from './../src/app.module';
@@ -22,7 +26,9 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
 
   beforeAll(async () => {
     // Localstack (S3 & DynamoDB)
-    localstackContainer = await new GenericContainer('localstack/localstack:4.14')
+    localstackContainer = await new GenericContainer(
+      'localstack/localstack:4.14',
+    )
       .withExposedPorts(4566)
       .withEnvironment({
         SERVICES: 's3,dynamodb',
@@ -405,7 +411,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
   it('should perform GET and DELETE operations on /asset', async () => {
     const dynamoDBClient = app.get(DynamoDBClient);
     const id = 'e2e-asset-123';
-    
+
     // 1. Seed the database (simulate Lambda)
     await dynamoDBClient.send(
       new PutItemCommand({
@@ -450,8 +456,6 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
   });
 
   it('should generate a presigned upload URL for a asset', async () => {
-    
-
     // 1. Request presigned URL
     const uploadUrlResponse = await request(app.getHttpServer())
       .post(`/asset/upload`)
@@ -464,20 +468,21 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     expect(data).toHaveProperty('uploadUrl');
     expect(data.uploadUrl).toContain('asset-uploads');
     expect(data.uploadUrl).toContain(assetId);
-    
+
     expect(data.uploadUrl).toContain('X-Amz-Algorithm');
 
     // 2. Perform actual upload using the presigned URL
-    const dummyContent = 'ply\nformat ascii 1.0\nelement vertex 0\nend_header\n';
+    const dummyContent =
+      'ply\nformat ascii 1.0\nelement vertex 0\nend_header\n';
     const uploadResponse = await fetch(data.uploadUrl, {
       method: 'PUT',
       body: dummyContent,
       headers: {
         'Content-Type': 'application/octet-stream',
-        'x-amz-meta-name': 'test.ply'
+        'x-amz-meta-name': 'test.ply',
       },
     });
-    
+
     expect(uploadResponse.ok).toBe(true);
     expect(uploadResponse.status).toBe(200);
 
@@ -487,9 +492,8 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     process.env.DYNAMODB_TABLE = tableName;
     process.env.AWS_REGION = 'us-east-1';
 
-    const { handler: assetUploadListener } = await import(
-      '../../packages/asset-upload-listener/src/index'
-    );
+    const { handler: assetUploadListener } =
+      await import('../../packages/asset-upload-listener/src/index');
 
     const mockS3Event: any = {
       Records: [

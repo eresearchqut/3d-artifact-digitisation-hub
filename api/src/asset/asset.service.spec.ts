@@ -6,9 +6,6 @@ import { AssetService } from './asset.service';
 
 describe('AssetService', () => {
   let service: AssetService;
-  let dynamoDBClient: DynamoDBClient;
-  let s3Client: S3Client;
-
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -35,14 +32,12 @@ describe('AssetService', () => {
     }).compile();
 
     service = module.get<AssetService>(AssetService);
-    dynamoDBClient = module.get<DynamoDBClient>(DynamoDBClient);
-    s3Client = module.get<S3Client>(S3Client);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
-  
+
   // basic mock test passing
   it('should run tests', () => {
     expect(true).toBe(true);

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "concurrently 'npm run start --workspace=@3d-hub/management-frontend' 'npm run start --workspace=@3d-hub/management-api'",
     "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "npm run test:e2e --workspaces --if-present",
     "storybook": "npm run storybook --workspace=@3d-hub/management-frontend"

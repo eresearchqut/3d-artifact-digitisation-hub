@@ -19,7 +19,7 @@ export const TeamDetailPage: React.FC = () => {
     enabled: !!id,
   });
 
-  const { data: teamUsers, isLoading: isUsersLoading } = useQuery({
+  const { data: teamUsers } = useQuery({
     queryKey: ['teamUsers', id],
     queryFn: () => teamService.listUsers(id!),
     enabled: !!id,
