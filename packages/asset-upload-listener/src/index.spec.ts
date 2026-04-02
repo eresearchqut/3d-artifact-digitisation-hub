@@ -16,7 +16,7 @@ describe('asset-upload-listener handler', () => {
         {
           s3: {
             bucket: { name: 'site-uploads', ownerIdentity: { principalId: 'A' }, arn: 'arn' },
-            object: { key: 'assets/asset-123.ply', size: 100, eTag: 'test-etag', sequencer: 'a' },
+            object: { key: 'assets/asset-123', size: 100, eTag: 'test-etag', sequencer: 'a' },
             s3SchemaVersion: '1.0',
             configurationId: 'test',
           },
@@ -46,7 +46,7 @@ describe('asset-upload-listener handler', () => {
     expect(item?.PK.S).toBe('ASSET#asset-123');
     expect(item?.SK.S).toBe('ASSET#asset-123');
     expect(item?.bucket.S).toBe('site-uploads');
-    expect(item?.key.S).toBe('assets/asset-123.ply');
+    expect(item?.key.S).toBe('assets/asset-123');
   });
 
   it('should skip objects with keys not containing assets prefix', async () => {

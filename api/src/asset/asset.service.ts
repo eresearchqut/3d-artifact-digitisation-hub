@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import { DynamoDBClient, GetItemCommand, DeleteItemCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -94,8 +95,10 @@ export class AssetService {
     await this.dynamoDBClient.send(command);
   }
 
-  async generateUploadUrl(id: string, extension: string, metadata?: Record<string, string>): Promise<{ uploadUrl: string }> {
+  async generateUploadUrl(metadata?: Record<string, string>): Promise<{ uploadUrl: string, id: string }> {
+    const id = randomUUID();
     const supportedExtensions = ['.ply', '.spz', '.splat', '.sog'];
+    const extension = metadata?.name ? '.' + metadata.name.split('.').pop()?.toLowerCase() : '';
     if (!supportedExtensions.includes(extension)) {
       throw new BadRequestException('Unsupported file extension. Only .ply, .spz, .splat, and .sog are supported.');
     }
@@ -103,12 +106,12 @@ export class AssetService {
     const bucketName = this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
     const command = new PutObjectCommand({
       Bucket: bucketName,
-      Key: `assets/${id}${extension}`,
+      Key: `assets/${id}`,
       ContentType: 'application/octet-stream',
       ...(metadata && Object.keys(metadata).length > 0 && { Metadata: metadata }),
     });
 
     const uploadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
-    return { uploadUrl };
+    return { uploadUrl, id };
   }
 }

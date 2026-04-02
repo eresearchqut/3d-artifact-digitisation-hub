@@ -49,12 +49,12 @@ export class AssetController {
     return this.assetService.remove(id);
   }
 
-  @Post(':id/upload')
+  @Post('upload')
   @ApiOperation({ summary: 'Get presigned upload URL for asset' })
   @ApiQuery({ name: 'extension', required: true, type: String, description: 'File extension (e.g., .ply, .spz, .splat, .sog)' })
   @ApiResponse({ status: 200, description: 'Presigned URL generated' })
   @ApiResponse({ status: 404, description: 'Asset not found' })
-  generateUploadUrl(@Param('id') id: string, @Query('extension') extension: string, @Body() body?: { metadata?: Record<string, string> }) {
-    return this.assetService.generateUploadUrl(id, extension, body?.metadata);
+  generateUploadUrl(@Body() body?: { metadata?: Record<string, string> }) {
+    return this.assetService.generateUploadUrl(body?.metadata);
   }
 }

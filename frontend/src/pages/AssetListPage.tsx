@@ -50,14 +50,13 @@ export const AssetListPage: React.FC = () => {
     try {
       setIsUploading(true);
       const extension = file.name.substring(file.name.lastIndexOf('.'));
-      const id = crypto.randomUUID();
-      const metadata = {
+            const metadata = {
         filename: file.name,
         size: file.size.toString(),
         type: file.type || 'application/octet-stream',
         lastmodified: file.lastModified.toString()
       };
-      const { uploadUrl } = await assetService.generateUploadUrl(id, extension, metadata);
+      const { uploadUrl } = await assetService.generateUploadUrl(metadata);
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/octet-stream',

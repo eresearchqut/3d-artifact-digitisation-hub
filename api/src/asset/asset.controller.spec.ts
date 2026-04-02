@@ -58,9 +58,9 @@ describe('AssetController', () => {
   
   describe('generateUploadUrl', () => {
     it('should return an upload url', async () => {
-      jest.spyOn(service, 'generateUploadUrl').mockResolvedValue({ uploadUrl: 'http://test.com' });
+      jest.spyOn(service, 'generateUploadUrl').mockResolvedValue({ uploadUrl: 'http://test.com', id: '1' });
 
-      expect(await controller.generateUploadUrl('1', '.ply')).toEqual({ uploadUrl: 'http://test.com' });
+      expect(await controller.generateUploadUrl({ metadata: { name: 'test.ply' } })).toEqual({ uploadUrl: 'http://test.com', id: '1' });
     });
   });
 });

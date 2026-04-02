@@ -18,17 +18,16 @@ export const handler: S3Handler = async (event: S3Event, context: Context): Prom
     const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
     const eTag = record.s3.object.eTag;
     
-    // Key format expected: assets/{asset_id}.ext
+    // Key format expected: assets/{asset_id}
     const parts = key.split('/');
     if (parts.length < 2 || parts[0] !== 'assets') {
       console.warn(`Skipping key ${key}: Does not contain an assets prefix`);
       continue;
     }
 
-    const filename = parts[1];
-    const assetId = filename.split('.')[0];
+    const assetId = parts[1];
 
-    let metadata = {};
+    let metadata: Record<string, string> = {};
     try {
       const headObj = await s3Client.send(new HeadObjectCommand({
         Bucket: bucket,
@@ -40,6 +39,8 @@ export const handler: S3Handler = async (event: S3Event, context: Context): Prom
     } catch (e) {
       console.error(`Failed to fetch metadata for ${key}`, e);
     }
+
+    const filename = metadata['name'] || assetId;
 
     const item = {
       PK: `ASSET#${assetId}`,

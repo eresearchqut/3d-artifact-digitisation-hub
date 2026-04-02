@@ -41,7 +41,7 @@ export const AssetDetailPage: React.FC = () => {
 
     try {
       // 1. Get presigned URL
-      const { uploadUrl } = await assetService.generateUploadUrl(id, extension);
+      const { uploadUrl } = await assetService.generateUploadUrl({ name: file.name, type: file.type, size: file.size.toString(), lastmodified: file.lastModified.toString() });
       
       // 2. Upload file
       const response = await fetch(uploadUrl, {

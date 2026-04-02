@@ -413,7 +413,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         Item: {
           PK: { S: `ASSET#${id}` },
           SK: { S: `ASSET#${id}` },
-          key: { S: `assets/${id}.ply` },
+          key: { S: `assets/${id}` },
         },
       }),
     );
@@ -427,7 +427,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id,
-          key: `assets/${id}.ply`,
+          key: `assets/${id}`,
         }),
       ]),
     );
@@ -439,7 +439,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
 
     expect(findOneResponse.body).toEqual({
       id,
-      key: `assets/${id}.ply`,
+      key: `assets/${id}`,
     });
 
     // 4. Remove (DELETE :id)
@@ -450,19 +450,21 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
   });
 
   it('should generate a presigned upload URL for a asset', async () => {
-    const assetId = 'new-upload-id-456';
+    
 
     // 1. Request presigned URL
     const uploadUrlResponse = await request(app.getHttpServer())
-      .post(`/asset/${assetId}/upload?extension=.ply`)
-      .send({ metadata: { filename: 'test.ply' } })
+      .post(`/asset/upload`)
+      .send({ metadata: { name: 'test.ply' } })
       .expect(201);
 
     const data = uploadUrlResponse.body;
+    const assetId = data.id;
+    expect(data).toHaveProperty('id');
     expect(data).toHaveProperty('uploadUrl');
     expect(data.uploadUrl).toContain('asset-uploads');
     expect(data.uploadUrl).toContain(assetId);
-    expect(data.uploadUrl).toContain('.ply');
+    
     expect(data.uploadUrl).toContain('X-Amz-Algorithm');
 
     // 2. Perform actual upload using the presigned URL
@@ -493,7 +495,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
           s3: {
             bucket: { name: 'asset-uploads' },
             object: {
-              key: `assets/${assetId}.ply`,
+              key: `assets/${assetId}`,
               eTag: 'dummy',
             },
           },
@@ -510,7 +512,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
 
     expect(getResponse.body).toEqual({
       id: assetId,
-      key: `assets/${assetId}.ply`,
+      key: `assets/${assetId}`,
     });
   });
 
