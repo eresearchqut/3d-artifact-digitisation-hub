@@ -5,6 +5,7 @@ import { assetService } from '../services/api.service';
 import { ArrowLeft, Globe } from 'lucide-react';
 import { Heading, Flex, Box, Stack, Text } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
+import { SplatViewer } from '../components/SplatViewer';
 
 export const AssetDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -94,6 +95,11 @@ export const AssetDetailPage: React.FC = () => {
           <Heading size="2xl" color="fg">{asset.key}</Heading>
         </Flex>
       </Flex>
+
+      <Box bg="bg.panel" p={6} borderRadius="lg" borderWidth="1px" shadow="sm">
+        <Heading size="lg" mb={4}>3D Viewer</Heading>
+        <SplatViewer url={`http://localhost:4566/site-uploads/${asset.key}`} />
+      </Box>
 
       <Box bg="bg.panel" p={6} borderRadius="lg" borderWidth="1px" shadow="sm">
         <Heading size="lg" mb={4}>Upload Assets</Heading>
