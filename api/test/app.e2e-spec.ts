@@ -474,6 +474,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       body: dummyContent,
       headers: {
         'Content-Type': 'application/octet-stream',
+        'x-amz-meta-name': 'test.ply'
       },
     });
     
@@ -482,6 +483,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
 
     // 3. Simulate S3 Event for the listener Lambda
     process.env.DYNAMODB_ENDPOINT = `http://${localstackContainer.getHost()}:${localstackContainer.getMappedPort(4566)}`;
+    process.env.S3_ENDPOINT = `http://${localstackContainer.getHost()}:${localstackContainer.getMappedPort(4566)}`;
     process.env.DYNAMODB_TABLE = tableName;
     process.env.AWS_REGION = 'us-east-1';
 

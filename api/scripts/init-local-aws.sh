@@ -72,7 +72,7 @@ aws lambda create-function \
   --role arn:aws:iam::000000000000:role/lambda-execution-role \
   --handler index.handler \
   --zip-file fileb:///packages/asset-upload-listener/lambda.zip \
-  --environment Variables="{DYNAMODB_ENDPOINT=http://localstack:4566,DYNAMODB_TABLE=test-table,AWS_REGION=us-east-1}" \
+  --environment Variables="{DYNAMODB_ENDPOINT=http://localstack:4566,DYNAMODB_TABLE=test-table,S3_ENDPOINT=http://localstack:4566,AWS_REGION=us-east-1}" \
   --region us-east-1 > /dev/null 2>&1 || true
 
 # Grant S3 permission to invoke Lambda
