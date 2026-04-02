@@ -15,6 +15,19 @@ interface Asset {
   metadata?: Record<string, string>;
 }
 
+const metadataColumns: Column<{ key: string; value: string }>[] = [
+  {
+    key: 'key',
+    header: 'Key',
+    render: (row) => <span className="text-muted-foreground">{row.key}</span>,
+  },
+  {
+    key: 'value',
+    header: 'Value',
+    render: (row) => <span>{row.value}</span>,
+  },
+];
+
 export const AssetListPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -200,7 +213,17 @@ export const AssetListPage: React.FC = () => {
                   <Box mt={4} color="fg.muted">Uploading asset...</Box>
                 </Box>
               ) : (
-                <FilePicker onFileSelect={handleFileSelect} accept=".ply,.spz,.splat,.sog" />
+                <>
+                  <Box mb={6} color="fg.muted">
+                    Upload a .ply, .spz, .splat, or .sog asset file. This will trigger the asset builder process.
+                  </Box>
+                  <FilePicker 
+                    onFileSelect={handleFileSelect} 
+                    accept=".ply,.spz,.splat,.sog"
+                    label="Upload 3DGS file"
+                    helperText="Drag and drop a .ply, .spz, .splat, or .sog file here, or click to select (Max 500MB)"
+                  />
+                </>
               )}
             </Dialog.Body>
           </Dialog.Content>
@@ -221,22 +244,12 @@ export const AssetListPage: React.FC = () => {
             <Dialog.Body>
               {selectedAssetMetadata && Object.keys(selectedAssetMetadata).length > 0 ? (
                 <Box overflowX="auto">
-                  <table className="w-full text-sm text-left border-collapse">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="py-2 font-medium">Key</th>
-                        <th className="py-2 font-medium">Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(selectedAssetMetadata).map(([k, v]) => (
-                        <tr key={k} className="border-b last:border-0">
-                          <td className="py-2 pr-4 text-muted-foreground">{k}</td>
-                          <td className="py-2">{v}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <DataTable
+                    data={Object.entries(selectedAssetMetadata).map(([key, value]) => ({ key, value }))}
+                    columns={metadataColumns}
+                    keyExtractor={(row) => row.key}
+                    emptyMessage="No metadata available."
+                  />
                 </Box>
               ) : (
                 <Box py={4}>No metadata available.</Box>
