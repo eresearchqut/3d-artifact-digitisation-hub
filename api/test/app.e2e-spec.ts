@@ -513,6 +513,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     expect(getResponse.body).toEqual({
       id: assetId,
       key: `assets/${assetId}`,
+      metadata: expect.any(Object),
     });
   });
 

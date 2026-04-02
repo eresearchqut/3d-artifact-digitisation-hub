@@ -41,6 +41,7 @@ export class AssetService {
       return {
         id: unmarshalled.PK.replace('ASSET#', ''),
         key: unmarshalled.key || '',
+        ...(unmarshalled.metadata && { metadata: unmarshalled.metadata }),
       };
     });
 
@@ -75,6 +76,7 @@ export class AssetService {
     return {
       id: unmarshalled.PK.replace('ASSET#', ''),
       key: unmarshalled.key || '',
+      ...(unmarshalled.metadata && { metadata: unmarshalled.metadata }),
     };
   }
 

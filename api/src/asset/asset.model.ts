@@ -5,4 +5,6 @@ export class Asset {
   id: string;
   @ApiProperty()
   key: string;
+  @ApiProperty({ required: false })
+  metadata?: Record<string, string>;
 }
