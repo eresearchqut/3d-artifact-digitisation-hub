@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { assetService, organisationService } from '../services/api.service';
 import { Plus, Trash2, Globe, Building2, Info } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { Button, HStack, Heading, Flex, Box, Stack, Dialog } from '@chakra-ui/react';
+import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Spinner } from '@chakra-ui/react';
 import { NativeSelect } from '@chakra-ui/react';
 import { Input } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
@@ -49,9 +49,8 @@ export const AssetListPage: React.FC = () => {
   const handleFileSelect = async (file: File) => {
     try {
       setIsUploading(true);
-      const extension = file.name.substring(file.name.lastIndexOf('.'));
-            const metadata = {
-        filename: file.name,
+      const metadata = {
+        name: file.name,
         size: file.size.toString(),
         type: file.type || 'application/octet-stream',
         lastmodified: file.lastModified.toString()
@@ -196,7 +195,10 @@ export const AssetListPage: React.FC = () => {
             </Dialog.Header>
             <Dialog.Body>
               {isUploading ? (
-                <Box textAlign="center" py={4}>Uploading...</Box>
+                <Box textAlign="center" py={10}>
+                  <Spinner size="xl" />
+                  <Box mt={4} color="fg.muted">Uploading asset...</Box>
+                </Box>
               ) : (
                 <FilePicker onFileSelect={handleFileSelect} accept=".ply,.spz,.splat,.sog" />
               )}
