@@ -16,7 +16,7 @@ type Story = StoryObj<typeof SplatViewer>;
 
 export const Default: Story = {
   args: {
-    url: 'https://huggingface.co/cakewalk/splat-data/resolve/main/train.splat', // Example remote URL
+    url: '/splats/cluster_fly_S.ply', // The cluster fly splat from superspl.at demo
     width: '800px',
     height: '600px',
   },
@@ -24,7 +24,7 @@ export const Default: Story = {
 
 export const CustomSize: Story = {
   args: {
-    url: 'https://huggingface.co/cakewalk/splat-data/resolve/main/train.splat',
+    url: '/splats/cluster_fly_S.ply',
     width: '400px',
     height: '300px',
   },

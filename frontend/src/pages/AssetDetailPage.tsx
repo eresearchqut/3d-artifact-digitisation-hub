@@ -97,8 +97,7 @@ export const AssetDetailPage: React.FC = () => {
       </Flex>
 
       <Box bg="bg.panel" p={6} borderRadius="lg" borderWidth="1px" shadow="sm">
-        <Heading size="lg" mb={4}>3D Viewer</Heading>
-        <SplatViewer url={`http://localhost:4566/site-uploads/${asset.key}`} />
+        <SplatViewer url={`http://localhost:3000/asset/${asset.id}/file`} />
       </Box>
 
       <Box bg="bg.panel" p={6} borderRadius="lg" borderWidth="1px" shadow="sm">

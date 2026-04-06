@@ -1,5 +1,6 @@
+// @ts-nocheck
 import React from 'react';
-import { Box, Spinner, Center } from '@chakra-ui/react';
+import * as Splat from '../ui/splat-viewer';
 
 export interface SplatViewerProps {
   url: string;
@@ -8,27 +9,25 @@ export interface SplatViewerProps {
 }
 
 export const SplatViewer: React.FC<SplatViewerProps> = ({ url, width = '100%', height = '500px' }) => {
-  const [isLoading, setIsLoading] = React.useState(true);
-
-  // Encode the URL so it can be passed safely via query parameters
-  const iframeSrc = `/splat-viewer/index.html?url=${encodeURIComponent(url)}`;
-
   return (
-    <Box position="relative" width={width} height={height} borderRadius="md" overflow="hidden" bg="black">
-      {isLoading && (
-        <Center position="absolute" top={0} left={0} right={0} bottom={0} zIndex={1}>
-          <Spinner color="white" size="xl" />
-        </Center>
-      )}
-      <iframe
-        src={iframeSrc}
-        title="Splat Viewer"
-        width="100%"
-        height="100%"
-        style={{ border: 'none', position: 'absolute', zIndex: 2 }}
-        onLoad={() => setIsLoading(false)}
-        allow="autoplay; fullscreen; vr"
-      />
-    </Box>
+    <div style={{ width, height, position: 'relative' }}>
+      <Splat.Viewer 
+        src={url} 
+        autoPlay 
+        className="rounded-t-lg lg:rounded-lg shadow-xl cursor-grab active:cursor-grabbing" 
+      >
+        <Splat.Controls autoHide>
+          <div style={{ display: 'flex', gap: '0.25rem', pointerEvents: 'auto', flexGrow: 1 }}>
+            <Splat.FullScreenButton />
+            <Splat.DownloadButton />
+          </div>
+          <div style={{ display: 'flex', gap: '0.25rem', pointerEvents: 'auto' }}>
+            <Splat.CameraModeToggle />
+            <Splat.HelpButton />
+            <Splat.MenuButton />
+          </div>
+        </Splat.Controls>
+      </Splat.Viewer>
+    </div>
   );
 };

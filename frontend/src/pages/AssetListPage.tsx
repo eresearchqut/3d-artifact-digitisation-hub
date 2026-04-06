@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import { assetService } from '../services/api.service';
 import { Plus, Trash2, Globe, Info } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Spinner } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';

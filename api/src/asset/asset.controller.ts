@@ -1,3 +1,4 @@
+import type { Response } from 'express';
 import {
   Controller,
   Get,
@@ -6,6 +7,8 @@ import {
   Param,
   Delete,
   Query,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AssetService } from './asset.service';
@@ -60,5 +63,20 @@ export class AssetController {
   @ApiResponse({ status: 404, description: 'Asset not found' })
   generateUploadUrl(@Body() body?: { metadata?: Record<string, string> }) {
     return this.assetService.generateUploadUrl(body?.metadata);
+  }
+
+  @Get(':id/file')
+  @ApiOperation({ summary: 'Get asset file' })
+  @ApiResponse({ status: 200, description: 'Asset file stream' })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  async getFile(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const stream = await this.assetService.getFile(id);
+    res.set({
+      'Content-Type': 'application/octet-stream',
+    });
+    return stream;
   }
 }

@@ -1,7 +1,9 @@
+import type { Readable } from 'stream';
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  StreamableFile,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
@@ -11,7 +13,11 @@ import {
   DeleteItemCommand,
   ScanCommand,
 } from '@aws-sdk/client-dynamodb';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { Asset } from './asset.model';
@@ -139,5 +145,18 @@ export class AssetService {
       expiresIn: 3600,
     });
     return { uploadUrl, id };
+  }
+
+  async getFile(id: string): Promise<StreamableFile> {
+    const asset = await this.findOne(id);
+    const bucketName =
+      this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
+    const command = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: asset.key || `assets/${id}`,
+    });
+
+    const response = await this.s3Client.send(command);
+    return new StreamableFile(response.Body as Readable);
   }
 }
