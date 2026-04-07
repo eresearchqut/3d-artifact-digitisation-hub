@@ -236,7 +236,7 @@ export const AssetListPage: React.FC = () => {
             <Dialog.Body p={0} m={0} h="full" w="full" overflow="hidden">
               {viewerAsset && (
                 <iframe
-                  src={`${import.meta.env.VITE_S3_ENDPOINT || 'http://localhost:4566'}/${viewerAsset.bucket || '3d-hub-assets'}/viewer/${viewerAsset.id}/index.html`}
+                  src={`${import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:3000'}/asset/${viewerAsset.id}/viewer/index.html`}
                   style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                   title="Asset Viewer"
                   allowFullScreen

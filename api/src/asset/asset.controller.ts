@@ -10,7 +10,7 @@ import {
   Res,
   StreamableFile,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { AssetService } from './asset.service';
 import { Asset } from './asset.model';
 import {
@@ -65,18 +65,26 @@ export class AssetController {
     return this.assetService.generateUploadUrl(body?.metadata);
   }
 
-  @Get(':id/file')
-  @ApiOperation({ summary: 'Get asset file' })
-  @ApiResponse({ status: 200, description: 'Asset file stream' })
-  @ApiResponse({ status: 404, description: 'Asset not found' })
-  async getFile(
+  @Get(':id/viewer/:file')
+  @ApiOperation({ summary: 'Proxy a viewer file for an asset' })
+  @ApiParam({ name: 'id', description: 'Asset ID' })
+  @ApiParam({
+    name: 'file',
+    description: 'Viewer filename',
+    enum: ['index.html', 'index.css', 'index.js', 'index.sog', 'settings.json'],
+  })
+  @ApiResponse({ status: 200, description: 'Viewer file content' })
+  @ApiResponse({ status: 400, description: 'Invalid filename' })
+  @ApiResponse({ status: 404, description: 'Viewer file not found' })
+  async getViewerFile(
     @Param('id') id: string,
+    @Param('file') file: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const stream = await this.assetService.getFile(id);
-    res.set({
-      'Content-Type': 'application/octet-stream',
-    });
-    return stream;
+    const { file: streamable, contentType } =
+      await this.assetService.getViewerFile(id, file);
+    res.set({ 'Content-Type': contentType });
+    return streamable;
   }
+
 }

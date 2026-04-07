@@ -23,6 +23,14 @@ import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { Asset } from './asset.model';
 import { PaginatedResponse } from '../utils/pagination.model';
 
+const VIEWER_FILES: Record<string, string> = {
+  'index.html': 'text/html',
+  'index.css': 'text/css',
+  'index.js': 'application/javascript',
+  'index.sog': 'application/octet-stream',
+  'settings.json': 'application/json',
+};
+
 @Injectable()
 export class AssetService {
   private readonly tableName: string;
@@ -158,5 +166,36 @@ export class AssetService {
 
     const response = await this.s3Client.send(command);
     return new StreamableFile(response.Body as Readable);
+  }
+
+  async getViewerFile(
+    id: string,
+    filename: string,
+  ): Promise<{ file: StreamableFile; contentType: string }> {
+    const contentType = VIEWER_FILES[filename];
+    if (!contentType) {
+      throw new BadRequestException(
+        `Invalid viewer file. Allowed: ${Object.keys(VIEWER_FILES).join(', ')}`,
+      );
+    }
+
+    const bucketName =
+      this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
+    const command = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: `viewer/${id}/${filename}`,
+    });
+
+    try {
+      const response = await this.s3Client.send(command);
+      return {
+        file: new StreamableFile(response.Body as Readable),
+        contentType,
+      };
+    } catch {
+      throw new NotFoundException(
+        `Viewer file '${filename}' not found for asset ${id}`,
+      );
+    }
   }
 }

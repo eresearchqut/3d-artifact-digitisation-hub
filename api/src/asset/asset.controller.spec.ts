@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AssetController } from './asset.controller';
 import { AssetService } from './asset.service';
+import { StreamableFile } from '@nestjs/common';
+import { Response } from 'express';
 
 describe('AssetController', () => {
   let controller: AssetController;
@@ -17,6 +19,7 @@ describe('AssetController', () => {
             findOne: jest.fn(),
             remove: jest.fn(),
             generateUploadUrl: jest.fn(),
+            getViewerFile: jest.fn(),
           },
         },
       ],
@@ -68,6 +71,23 @@ describe('AssetController', () => {
       expect(
         await controller.generateUploadUrl({ metadata: { name: 'test.ply' } }),
       ).toEqual({ uploadUrl: 'http://test.com', id: '1' });
+    });
+  });
+
+  describe('getViewerFile', () => {
+    it('should stream viewer file with correct content-type', async () => {
+      const mockStream = new StreamableFile(Uint8Array.from(Buffer.from('<html/>')));
+      jest.spyOn(service, 'getViewerFile').mockResolvedValue({
+        file: mockStream,
+        contentType: 'text/html',
+      });
+      const mockRes = { set: jest.fn() } as unknown as Response;
+
+      const result = await controller.getViewerFile('1', 'index.html', mockRes);
+
+      expect(service.getViewerFile).toHaveBeenCalledWith('1', 'index.html');
+      expect(mockRes.set).toHaveBeenCalledWith({ 'Content-Type': 'text/html' });
+      expect(result).toBe(mockStream);
     });
   });
 });
