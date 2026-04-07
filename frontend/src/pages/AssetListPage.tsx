@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetService } from '../services/api.service';
 import { Plus, Trash2, Globe, Info } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Spinner } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
@@ -10,6 +9,7 @@ import { FilePicker } from '../components/FilePicker/FilePicker';
 interface Asset {
   id: string;
   key: string;
+  bucket?: string;
   metadata?: Record<string, string>;
 }
 
@@ -32,6 +32,7 @@ export const AssetListPage: React.FC = () => {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedAssetMetadata, setSelectedAssetMetadata] = useState<Record<string, string> | null>(null);
+  const [viewerAsset, setViewerAsset] = useState<Asset | null>(null);
 
   const { data: assets, isLoading, error } = useQuery({
     queryKey: ['assets'],
@@ -113,12 +114,10 @@ export const AssetListPage: React.FC = () => {
             <Info />
             Metadata
           </Button>
-          <Link to={`/asset/${asset.id}`}>
-            <Button variant="ghost" size="sm">
-              <Globe />
-              View
-            </Button>
-          </Link>
+          <Button variant="ghost" size="sm" onClick={() => setViewerAsset(asset)}>
+            <Globe />
+            View
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -236,6 +235,32 @@ export const AssetListPage: React.FC = () => {
                 </Box>
               ) : (
                 <Box py={4}>No metadata available.</Box>
+              )}
+            </Dialog.Body>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+
+      {/* Viewer Dialog */}
+      <Dialog.Root open={viewerAsset !== null} onOpenChange={(e: any) => !e.open && setViewerAsset(null)}>
+        <Dialog.Backdrop />
+        {/* @ts-ignore */}
+        <Dialog.Positioner>
+          {/* @ts-ignore */}
+          <Dialog.Content maxW="90vw" h="90vh">
+            <Dialog.CloseTrigger />
+            <Dialog.Header>
+              {/* @ts-ignore */}
+              <Dialog.Title>Asset Viewer: {viewerAsset?.id}</Dialog.Title>
+            </Dialog.Header>
+            <Dialog.Body p={0} m={0} h="full" w="full" overflow="hidden">
+              {viewerAsset && (
+                <iframe
+                  src={`${import.meta.env.VITE_S3_ENDPOINT || 'http://localhost:4566'}/${viewerAsset.bucket || '3d-hub-assets'}/viewer/${viewerAsset.id}/index.html`}
+                  style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                  title="Asset Viewer"
+                  allowFullScreen
+                />
               )}
             </Dialog.Body>
           </Dialog.Content>

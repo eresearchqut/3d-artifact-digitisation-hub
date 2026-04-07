@@ -1,13 +1,54 @@
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import * as fsPromises from 'fs/promises';
-import * as fs from 'fs';
+import { S3Client, GetObjectCommand, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import * as path from 'path';
 import * as mime from 'mime-types';
-import { Readable } from 'stream';
+import { S3Event, S3Handler } from 'aws-lambda';
+import {
+    readFile,
+    getInputFormat,
+    MemoryReadFileSystem,
+    writeHtml,
+    FileSystem,
+    Writer
+} from '@playcanvas/splat-transform';
 
-const execAsync = promisify(exec);
+const s3Client = new S3Client({
+    region: process.env.AWS_REGION || 'us-east-1',
+    endpoint: process.env.S3_ENDPOINT || undefined,
+    forcePathStyle: true
+});
+
+export const handler: S3Handler = async (event: S3Event): Promise<void> => {
+    console.log(`Received S3 event for transform: ${JSON.stringify(event)}`);
+
+    for (const record of event.Records) {
+        const bucket = record.s3.bucket.name;
+        const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
+        
+        const parts = key.split('/');
+        if (parts.length < 2 || parts[0] !== 'assets') {
+            console.warn(`Skipping key ${key}: Does not contain an assets prefix`);
+            continue;
+        }
+
+        const assetId = parts[1];
+        let originalFilename = assetId;
+
+        try {
+            const headObj = await s3Client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+            if (headObj.Metadata && headObj.Metadata['name']) {
+                originalFilename = headObj.Metadata['name'];
+            }
+        } catch {
+            console.warn(`Could not retrieve metadata for ${key} to determine original filename, using assetId as filename fallback`);
+        }
+
+        try {
+            await processAssetToViewer(s3Client, bucket, key, assetId, originalFilename);
+        } catch (error) {
+            console.error(`Failed to transform asset ${assetId}:`, error);
+        }
+    }
+};
 
 export async function processAssetToViewer(
     s3Client: S3Client,
@@ -22,43 +63,61 @@ export async function processAssetToViewer(
         ext = '.ply'; // fallback
     }
 
-    const tmpDir = await fsPromises.mkdtemp('/tmp/splat-transform-');
-    const inputFilePath = path.join(tmpDir, `${assetId}${ext}`);
-    const outputDir = path.join(tmpDir, 'viewer');
-    await fsPromises.mkdir(outputDir, { recursive: true });
-    const outputHtmlPath = path.join(outputDir, 'index.html');
+    const inputFileName = path.resolve(`${assetId}${ext}`);
 
     try {
-        console.log(`Downloading s3://${bucket}/${key} to ${inputFilePath}`);
+        console.log(`Downloading s3://${bucket}/${key} to memory...`);
         const getObj = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-        const body = getObj.Body as Readable;
+        const bodyBuffer = await getObj.Body?.transformToByteArray();
+        if (!bodyBuffer) throw new Error('Empty S3 object body');
 
-        await new Promise((resolve, reject) => {
-            const fileStream = fs.createWriteStream(inputFilePath);
-            body.pipe(fileStream);
-            body.on('error', reject);
-            fileStream.on('finish', resolve);
-            fileStream.on('error', reject);
+        console.log(`Parsing ${inputFileName} in memory...`);
+        const fsRead = new MemoryReadFileSystem();
+        fsRead.set(inputFileName, bodyBuffer);
+        
+        const tables = await readFile({
+            filename: inputFileName,
+            inputFormat: getInputFormat(inputFileName),
+            options: {
+                iterations: 3,
+                lodSelect: [],
+                unbundled: true,
+                lodChunkCount: 0,
+                lodChunkExtent: 0
+            },
+            params: [],
+            fileSystem: fsRead
         });
 
-        console.log(`Converting ${inputFilePath} to HTML viewer at ${outputHtmlPath}`);
-        const { stdout, stderr } = await execAsync(`npx splat-transform -U "${inputFilePath}" "${outputHtmlPath}"`);
-        if (stdout) console.log(`splat-transform stdout: ${stdout}`);
-        if (stderr) console.error(`splat-transform stderr: ${stderr}`);
+        if (!tables || tables.length === 0) {
+            throw new Error('No data table returned from readFile');
+        }
 
-        const files = await fsPromises.readdir(outputDir);
+        console.log(`Converting to HTML viewer on disk...`);
+        const outDir = path.resolve(`/tmp/viewer/${assetId}`);
+        await fsPromises.mkdir(outDir, { recursive: true });
+        
+        const fsWrite = new LambdaFileSystem();
+        const htmlFileName = path.resolve(outDir, 'index.html');
+        await writeHtml({
+            filename: htmlFileName,
+            dataTable: tables[0],
+            bundle: false,
+            iterations: 3
+        }, fsWrite);
+
         console.log(`Uploading generated files to s3://${bucket}/viewer/${assetId}/`);
 
-        for (const file of files) {
-            const filePath = path.join(outputDir, file);
-            let contentType = mime.lookup(filePath);
+        for (const file of fsWrite.results) {
+            let contentType = mime.lookup(file);
             if (!contentType) {
                 if (file.endsWith('.sog')) contentType = 'application/octet-stream';
                 else contentType = 'application/octet-stream';
             }
 
-            const fileData = await fsPromises.readFile(filePath);
-            const uploadKey = `viewer/${assetId}/${file}`;
+            const relativePath = path.relative(outDir, file);
+            const uploadKey = `viewer/${assetId}/${relativePath}`;
+            const fileData = await fsPromises.readFile(file);
 
             await s3Client.send(new PutObjectCommand({
                 Bucket: bucket,
@@ -70,11 +129,34 @@ export async function processAssetToViewer(
         }
 
         console.log(`Successfully converted and uploaded viewer for asset ${assetId}`);
-    } finally {
-        try {
-            await fsPromises.rm(tmpDir, { recursive: true, force: true });
-        } catch (cleanupErr) {
-            console.error(`Failed to clean up temp directory ${tmpDir}`, cleanupErr);
-        }
+    } catch (error) {
+        console.error(`Failed to process asset ${assetId}:`, error);
+        throw error;
+    }
+}
+
+import * as fsSync from 'fs';
+import * as fsPromises from 'fs/promises';
+
+class LambdaFileSystem implements FileSystem {
+    public results = new Set<string>();
+
+    createWriter(filename: string): Writer {
+        const fullPath = path.resolve(filename);
+        const fd = fsSync.openSync(fullPath, 'w');
+        this.results.add(fullPath);
+
+        return {
+            write: (data: Uint8Array) => {
+                fsSync.writeSync(fd, data);
+            },
+            close: () => {
+                fsSync.closeSync(fd);
+            }
+        };
+    }
+
+    async mkdir(dir: string): Promise<void> {
+        await fsPromises.mkdir(path.resolve(dir), { recursive: true });
     }
 }

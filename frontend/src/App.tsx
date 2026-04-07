@@ -13,7 +13,6 @@ import { UserListPage } from './pages/UserListPage';
 import { TeamListPage } from './pages/TeamListPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
 import { AssetListPage } from './pages/AssetListPage';
-import { AssetDetailPage } from './pages/AssetDetailPage';
 
 const queryClient: QueryClient = new QueryClient();
 
@@ -92,7 +91,6 @@ function App() {
               <Route path="/team/:id" element={<TeamDetailPage />} />
               <Route path="/user" element={<UserListPage />} />
               <Route path="/asset" element={<AssetListPage />} />
-              <Route path="/asset/:id" element={<AssetDetailPage />} />
             </Routes>
           </Layout>
         )}

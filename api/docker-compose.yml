@@ -25,6 +25,19 @@ services:
     depends_on:
       - localstack
 
+  s3manager:
+    image: cloudlena/s3manager:latest
+    ports:
+      - "8002:8080"
+    environment:
+      - ENDPOINT=localstack:4566
+      - REGION=us-east-1
+      - ACCESS_KEY_ID=test
+      - SECRET_ACCESS_KEY=test
+      - USE_SSL=false
+    depends_on:
+      - localstack
+
   aws-cli:
     image: amazon/aws-cli
     depends_on:

@@ -2,7 +2,6 @@ import { S3Event, S3Handler } from 'aws-lambda';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { marshall } from '@aws-sdk/util-dynamodb';
-import { processAssetToViewer } from '@3d-hub/asset-splat-transform';
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1', endpoint: process.env.S3_ENDPOINT || undefined, forcePathStyle: true });
 
@@ -59,13 +58,6 @@ export const handler: S3Handler = async (event: S3Event): Promise<void> => {
       });
       await dynamoClient.send(command);
       console.log(`Successfully recorded asset upload for asset ${assetId}`);
-
-      try {
-        await processAssetToViewer(s3Client, bucket, key, assetId, filename);
-      } catch (transformErr) {
-        console.error(`Failed to convert asset ${assetId} to HTML viewer:`, transformErr);
-        // Do not fail the whole lambda if viewer generation fails, but log it
-      }
     } catch (error) {
       console.error(`Failed to record asset upload for key ${key}:`, error);
       throw error;

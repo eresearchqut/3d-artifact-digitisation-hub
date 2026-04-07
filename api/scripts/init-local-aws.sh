@@ -64,7 +64,7 @@ aws iam create-role \
   --assume-role-policy-document '{"Version": "2012-10-17","Statement": [{"Action": "sts:AssumeRole","Principal": {"Service": "lambda.amazonaws.com"},"Effect": "Allow","Sid": ""}]}' \
   --region us-east-1 > /dev/null 2>&1 || true
 
-# Create the Lambda function
+# Create the Lambda functions
 aws lambda create-function \
   --endpoint-url http://localstack:4566 \
   --function-name asset-upload-listener \
@@ -73,6 +73,16 @@ aws lambda create-function \
   --handler index.handler \
   --zip-file fileb:///packages/asset-upload-listener/lambda.zip \
   --environment Variables="{DYNAMODB_ENDPOINT=http://localstack:4566,DYNAMODB_TABLE=test-table,S3_ENDPOINT=http://localstack:4566,AWS_REGION=us-east-1}" \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+aws lambda create-function \
+  --endpoint-url http://localstack:4566 \
+  --function-name asset-splat-transform \
+  --runtime nodejs20.x \
+  --role arn:aws:iam::000000000000:role/lambda-execution-role \
+  --handler index.handler \
+  --zip-file fileb:///packages/asset-splat-transform/lambda.zip \
+  --environment Variables="{S3_ENDPOINT=http://localstack:4566,AWS_REGION=us-east-1}" \
   --region us-east-1 > /dev/null 2>&1 || true
 
 # Grant S3 permission to invoke Lambda
@@ -86,10 +96,25 @@ aws lambda add-permission \
   --source-account 000000000000 \
   --region us-east-1 > /dev/null 2>&1 || true
 
-echo "Waiting for Lambda function to become active..."
+aws lambda add-permission \
+  --endpoint-url http://localstack:4566 \
+  --function-name asset-splat-transform \
+  --principal s3.amazonaws.com \
+  --statement-id s3invoke-transform \
+  --action "lambda:InvokeFunction" \
+  --source-arn arn:aws:s3:::site-uploads \
+  --source-account 000000000000 \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+echo "Waiting for Lambda functions to become active..."
 aws lambda wait function-active-v2 \
   --endpoint-url http://localstack:4566 \
   --function-name asset-upload-listener \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+aws lambda wait function-active-v2 \
+  --endpoint-url http://localstack:4566 \
+  --function-name asset-splat-transform \
   --region us-east-1 > /dev/null 2>&1 || true
 
 # Configure S3 to trigger Lambda
@@ -99,6 +124,20 @@ cat << 'NOTIFICATION' > /tmp/notification.json
   "LambdaFunctionConfigurations": [
     {
       "LambdaFunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:asset-upload-listener",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            {
+              "Name": "prefix",
+              "Value": "assets/"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "LambdaFunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:asset-splat-transform",
       "Events": ["s3:ObjectCreated:*"],
       "Filter": {
         "Key": {
