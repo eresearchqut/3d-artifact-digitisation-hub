@@ -2,10 +2,10 @@
   "name": "@3d-hub/asset-splat-transform",
   "version": "1.0.0",
   "description": "Convert uploaded splat/ply assets to SOG HTML viewer app",
-  "main": "dist/index.js",
+  "main": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --outfile=dist/index.js && cd dist && zip -r ../lambda.zip index.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --banner:js=\"import { createRequire as topLevelCreateRequire } from 'module'; const require = topLevelCreateRequire(import.meta.url);\" --outfile=dist/index.mjs && cp node_modules/@playcanvas/splat-transform/lib/webp.wasm dist/webp.wasm 2>/dev/null || cp ../../node_modules/@playcanvas/splat-transform/lib/webp.wasm dist/webp.wasm && cd dist && zip -r ../lambda.zip index.mjs webp.wasm",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "lint": "eslint src --ext ts"
   },

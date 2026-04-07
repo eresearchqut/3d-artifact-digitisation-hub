@@ -83,6 +83,14 @@ aws lambda create-function \
   --handler index.handler \
   --zip-file fileb:///packages/asset-splat-transform/lambda.zip \
   --environment Variables="{S3_ENDPOINT=http://localstack:4566,AWS_REGION=us-east-1}" \
+  --timeout 900 \
+  --memory-size 3008 \
+  --region us-east-1 > /dev/null 2>&1 || \
+aws lambda update-function-configuration \
+  --endpoint-url http://localstack:4566 \
+  --function-name asset-splat-transform \
+  --timeout 900 \
+  --memory-size 3008 \
   --region us-east-1 > /dev/null 2>&1 || true
 
 # Grant S3 permission to invoke Lambda

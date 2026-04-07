@@ -27,5 +27,14 @@ export class InfraStack extends cdk.Stack {
 
     // Placeholder for Lambda & API Gateway
     // const managementApiLambda = new lambda.Function(this, 'ManagementApiHandler', ...);
+
+    // asset-splat-transform requires a long timeout (up to 15 min) and high memory
+    // (Lambda CPU allocation scales with memory) for CPU-intensive splat processing.
+    // const splatTransformLambda = new lambda.Function(this, 'AssetSplatTransform', {
+    //   runtime: lambda.Runtime.NODEJS_20_X,
+    //   timeout: cdk.Duration.minutes(15),
+    //   memorySize: 3008,
+    //   ...
+    // });
   }
 }

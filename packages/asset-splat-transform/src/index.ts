@@ -8,8 +8,13 @@ import {
     writeHtml,
     FileSystem,
     Writer,
-    MemoryReadFileSystem
+    MemoryReadFileSystem,
+    WebPCodec
 } from '@playcanvas/splat-transform';
+
+// webp.wasm is co-located with this bundle; override the default path resolution
+// which breaks when the dist bundle is not in the original package's dist/ directory
+WebPCodec.wasmUrl = new URL('webp.wasm', import.meta.url).href;
 
 const s3Client = new S3Client({
     region: process.env.AWS_REGION || 'us-east-1',
