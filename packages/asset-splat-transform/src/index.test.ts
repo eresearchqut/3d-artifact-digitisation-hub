@@ -1,31 +1,11 @@
 import { S3Client, CreateBucketCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { LocalstackContainer, StartedLocalStackContainer } from '@testcontainers/localstack';
 import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
+import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 
-// Minimal valid PLY file for splat-transform
-const MINIMAL_PLY = `ply
-format ascii 1.0
-element vertex 1
-property float x
-property float y
-property float z
-property float nx
-property float ny
-property float nz
-property float f_dc_0
-property float f_dc_1
-property float f_dc_2
-property float opacity
-property float scale_0
-property float scale_1
-property float scale_2
-property float rot_0
-property float rot_1
-property float rot_2
-property float rot_3
-end_header
-0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0
-`;
+
 
 describe('asset-splat-transform integration test', () => {
     let container: StartedLocalStackContainer;
@@ -76,16 +56,18 @@ describe('asset-splat-transform integration test', () => {
     });
 
     it('should process a valid PLY file and output splat/html files', async () => {
-        const assetId = 'test-asset-123';
-        const testKey = `assets/${assetId}/model.ply`;
+        const assetId = crypto.randomUUID();
+        const testKey = `assets/${assetId}`;
+        const testFilePath = path.resolve('../../frontend/public/splats/cluster_fly_S.ply');
+        const fileData = fs.readFileSync(testFilePath);
 
-        // Upload a dummy PLY file
+        // Upload a test PLY file
         await s3Client.send(new PutObjectCommand({
             Bucket: bucketName,
             Key: testKey,
-            Body: Buffer.from(MINIMAL_PLY),
+            Body: fileData,
             Metadata: {
-                name: 'model.ply'
+                name: 'cluster_fly_S.ply'
             }
         }));
 
@@ -113,7 +95,7 @@ describe('asset-splat-transform integration test', () => {
         const uploadedKeys = listResponse.Contents?.map(c => c.Key) || [];
         
         // At least index.html should be created and uploaded
-        expect(uploadedKeys.length).toBeGreaterThan(0);
+        expect(uploadedKeys.length).toBeGreaterThan(3);
         expect(uploadedKeys.some(k => k?.endsWith('index.html'))).toBe(true);
-    }, 30000);
+    }, 120000);
 });
