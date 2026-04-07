@@ -87,27 +87,6 @@ aws lambda create-function \
   --memory-size 10240 \
   --region us-east-1 > /dev/null 2>&1 || \
 
-# Grant S3 permission to invoke Lambda
-aws lambda add-permission \
-  --endpoint-url http://localstack:4566 \
-  --function-name asset-upload-listener \
-  --principal s3.amazonaws.com \
-  --statement-id s3invoke \
-  --action "lambda:InvokeFunction" \
-  --source-arn arn:aws:s3:::site-uploads \
-  --source-account 000000000000 \
-  --region us-east-1 > /dev/null 2>&1 || true
-
-aws lambda add-permission \
-  --endpoint-url http://localstack:4566 \
-  --function-name asset-splat-transform \
-  --principal s3.amazonaws.com \
-  --statement-id s3invoke-transform \
-  --action "lambda:InvokeFunction" \
-  --source-arn arn:aws:s3:::site-uploads \
-  --source-account 000000000000 \
-  --region us-east-1 > /dev/null 2>&1 || true
-
 echo "Waiting for Lambda functions to become active..."
 aws lambda wait function-active-v2 \
   --endpoint-url http://localstack:4566 \
@@ -119,47 +98,61 @@ aws lambda wait function-active-v2 \
   --function-name asset-splat-transform \
   --region us-east-1 > /dev/null 2>&1 || true
 
-# Configure S3 to trigger Lambda
-echo "Configuring S3 Lambda Trigger..."
-cat << 'NOTIFICATION' > /tmp/notification.json
-{
-  "LambdaFunctionConfigurations": [
-    {
-      "LambdaFunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:asset-upload-listener",
-      "Events": ["s3:ObjectCreated:*"],
-      "Filter": {
-        "Key": {
-          "FilterRules": [
-            {
-              "Name": "prefix",
-              "Value": "assets/"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "LambdaFunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:asset-splat-transform",
-      "Events": ["s3:ObjectCreated:*"],
-      "Filter": {
-        "Key": {
-          "FilterRules": [
-            {
-              "Name": "prefix",
-              "Value": "assets/"
-            }
-          ]
-        }
-      }
-    }
-  ]
-}
-NOTIFICATION
-
+# Enable EventBridge notifications on the upload bucket so that both Lambdas
+# can be triggered independently via EventBridge rules. Direct S3→Lambda
+# notifications cannot have two rules with the same prefix filter.
+echo "Enabling S3 EventBridge notifications..."
 aws s3api put-bucket-notification-configuration \
   --bucket site-uploads \
-  --notification-configuration file:///tmp/notification.json \
+  --notification-configuration '{"EventBridgeConfiguration":{}}' \
   --endpoint-url http://localstack:4566 \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+# Grant EventBridge permission to invoke each Lambda
+aws lambda add-permission \
+  --endpoint-url http://localstack:4566 \
+  --function-name asset-upload-listener \
+  --principal events.amazonaws.com \
+  --statement-id eb-invoke-upload-listener \
+  --action "lambda:InvokeFunction" \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+aws lambda add-permission \
+  --endpoint-url http://localstack:4566 \
+  --function-name asset-splat-transform \
+  --principal events.amazonaws.com \
+  --statement-id eb-invoke-splat-transform \
+  --action "lambda:InvokeFunction" \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+# Create EventBridge rules routing Object Created events to each Lambda
+echo "Creating EventBridge rules..."
+UPLOAD_RULE_ARN=$(aws events put-rule \
+  --endpoint-url http://localstack:4566 \
+  --name asset-upload-listener-rule \
+  --event-pattern '{"source":["aws.s3"],"detail-type":["Object Created"],"detail":{"bucket":{"name":["site-uploads"]},"object":{"key":[{"prefix":"assets/"}]}}}' \
+  --state ENABLED \
+  --region us-east-1 \
+  --query 'RuleArn' --output text 2>/dev/null) || true
+
+TRANSFORM_RULE_ARN=$(aws events put-rule \
+  --endpoint-url http://localstack:4566 \
+  --name asset-splat-transform-rule \
+  --event-pattern '{"source":["aws.s3"],"detail-type":["Object Created"],"detail":{"bucket":{"name":["site-uploads"]},"object":{"key":[{"prefix":"assets/"}]}}}' \
+  --state ENABLED \
+  --region us-east-1 \
+  --query 'RuleArn' --output text 2>/dev/null) || true
+
+aws events put-targets \
+  --endpoint-url http://localstack:4566 \
+  --rule asset-upload-listener-rule \
+  --targets '[{"Id":"upload-listener","Arn":"arn:aws:lambda:us-east-1:000000000000:function:asset-upload-listener"}]' \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+aws events put-targets \
+  --endpoint-url http://localstack:4566 \
+  --rule asset-splat-transform-rule \
+  --targets '[{"Id":"splat-transform","Arn":"arn:aws:lambda:us-east-1:000000000000:function:asset-splat-transform"}]' \
   --region us-east-1 > /dev/null 2>&1 || true
 
 # Create Cognito User Pool

@@ -3,8 +3,6 @@ services:
     image: localstack/localstack:4.14
     ports:
       - "4566:4566"
-    environment:
-      - SERVICES=s3,dynamodb,lambda,iam
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 

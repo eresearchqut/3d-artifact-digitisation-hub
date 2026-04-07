@@ -22,7 +22,22 @@ function App() {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:3000';
+        // In production, /runtime-config.json is written into the S3 bucket by CDK
+        // at deploy time and contains the real API Gateway URL. In local dev the
+        // file won't exist, so we fall back to VITE_MANAGEMENT_API_URL / localhost.
+        let apiUrl = import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:3000';
+        try {
+          const runtimeConfig = await fetch('/runtime-config.json');
+          if (runtimeConfig.ok) {
+            const runtimeData = await runtimeConfig.json();
+            if (runtimeData.apiUrl) {
+              apiUrl = runtimeData.apiUrl;
+            }
+          }
+        } catch {
+          // runtime-config.json not present (local dev) — use env var fallback
+        }
+
         const response = await fetch(`${apiUrl}/config/amplify`);
         if (!response.ok) {
           throw new Error(`Failed to fetch config: ${response.statusText}`);

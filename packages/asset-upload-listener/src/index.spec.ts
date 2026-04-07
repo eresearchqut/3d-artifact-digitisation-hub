@@ -1,11 +1,41 @@
 import { handler } from './index';
-import { S3Event, Context } from 'aws-lambda';
+import { EventBridgeEvent, Context } from 'aws-lambda';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { mockClient } from 'aws-sdk-client-mock';
 
 const dynamoMock = mockClient(DynamoDBClient);
 const s3Mock = mockClient(S3Client);
+
+type S3ObjectCreatedEvent = EventBridgeEvent<'Object Created', {
+  version: string;
+  bucket: { name: string };
+  object: { key: string; size: number; etag: string; sequencer: string };
+  'request-id': string;
+  requester: string;
+  reason: string;
+}>;
+
+function makeEvent(bucket: string, key: string): S3ObjectCreatedEvent {
+  return {
+    version: '0',
+    id: 'test-event-id',
+    source: 'aws.s3',
+    account: '000000000000',
+    time: new Date().toISOString(),
+    region: 'us-east-1',
+    resources: [`arn:aws:s3:::${bucket}`],
+    'detail-type': 'Object Created',
+    detail: {
+      version: '0',
+      bucket: { name: bucket },
+      object: { key, size: 100, etag: 'test-etag', sequencer: 'a' },
+      'request-id': 'test-request-id',
+      requester: '000000000000',
+      reason: 'PutObject',
+    },
+  };
+}
 
 describe('asset-upload-listener handler', () => {
   beforeEach(() => {
@@ -14,33 +44,13 @@ describe('asset-upload-listener handler', () => {
   });
 
   it('should process S3 event and write to DynamoDB', async () => {
-    const event: Partial<S3Event> = {
-      Records: [
-        {
-          s3: {
-            bucket: { name: 'site-uploads', ownerIdentity: { principalId: 'A' }, arn: 'arn' },
-            object: { key: 'assets/asset-123', size: 100, eTag: 'test-etag', sequencer: 'a' },
-            s3SchemaVersion: '1.0',
-            configurationId: 'test',
-          },
-          awsRegion: 'us-east-1',
-          eventName: 'ObjectCreated:Put',
-          eventSource: 'aws:s3',
-          eventTime: new Date().toISOString(),
-          eventVersion: '2.0',
-          requestParameters: { sourceIPAddress: '127.0.0.1' },
-          responseElements: { 'x-amz-request-id': 'xyz', 'x-amz-id-2': 'abc' },
-          userIdentity: { principalId: 'A' },
-        },
-      ],
-    };
-
+    const event = makeEvent('site-uploads', 'assets/asset-123');
     const context = {} as Context;
 
     s3Mock.on(HeadObjectCommand).resolves({ Metadata: { name: 'my-model.ply' } });
     dynamoMock.on(PutItemCommand).resolves({});
 
-    await handler(event as S3Event, context, () => {});
+    await handler(event, context, () => {});
 
     expect(dynamoMock.calls().length).toBe(1);
     const command = dynamoMock.call(0).args[0] as PutItemCommand;
@@ -55,33 +65,13 @@ describe('asset-upload-listener handler', () => {
   });
 
   it('should fall back to assetId as name when HeadObject metadata is absent', async () => {
-    const event: Partial<S3Event> = {
-      Records: [
-        {
-          s3: {
-            bucket: { name: 'site-uploads', ownerIdentity: { principalId: 'A' }, arn: 'arn' },
-            object: { key: 'assets/asset-456', size: 100, eTag: 'test-etag', sequencer: 'b' },
-            s3SchemaVersion: '1.0',
-            configurationId: 'test',
-          },
-          awsRegion: 'us-east-1',
-          eventName: 'ObjectCreated:Put',
-          eventSource: 'aws:s3',
-          eventTime: new Date().toISOString(),
-          eventVersion: '2.0',
-          requestParameters: { sourceIPAddress: '127.0.0.1' },
-          responseElements: { 'x-amz-request-id': 'xyz', 'x-amz-id-2': 'abc' },
-          userIdentity: { principalId: 'A' },
-        },
-      ],
-    };
-
+    const event = makeEvent('site-uploads', 'assets/asset-456');
     const context = {} as Context;
 
     s3Mock.on(HeadObjectCommand).resolves({ Metadata: {} });
     dynamoMock.on(PutItemCommand).resolves({});
 
-    await handler(event as S3Event, context, () => {});
+    await handler(event, context, () => {});
 
     expect(dynamoMock.calls().length).toBe(1);
     const command = dynamoMock.call(0).args[0] as PutItemCommand;
@@ -89,30 +79,10 @@ describe('asset-upload-listener handler', () => {
   });
 
   it('should skip objects with keys not containing assets prefix', async () => {
-    const event: Partial<S3Event> = {
-      Records: [
-        {
-          s3: {
-            bucket: { name: 'site-uploads', ownerIdentity: { principalId: 'A' }, arn: 'arn' },
-            object: { key: 'invalid-key-no-slash.ply', size: 100, eTag: 'test-etag', sequencer: 'a' },
-            s3SchemaVersion: '1.0',
-            configurationId: 'test',
-          },
-          awsRegion: 'us-east-1',
-          eventName: 'ObjectCreated:Put',
-          eventSource: 'aws:s3',
-          eventTime: new Date().toISOString(),
-          eventVersion: '2.0',
-          requestParameters: { sourceIPAddress: '127.0.0.1' },
-          responseElements: { 'x-amz-request-id': 'xyz', 'x-amz-id-2': 'abc' },
-          userIdentity: { principalId: 'A' },
-        },
-      ],
-    };
-
+    const event = makeEvent('site-uploads', 'invalid-key-no-slash.ply');
     const context = {} as Context;
 
-    await handler(event as S3Event, context, () => {});
+    await handler(event, context, () => {});
 
     expect(s3Mock.calls().length).toBe(0);
     expect(dynamoMock.calls().length).toBe(0);

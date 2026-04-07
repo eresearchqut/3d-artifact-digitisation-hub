@@ -7,11 +7,12 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
-import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as targets from 'aws-cdk-lib/aws-events-targets';
 
 export class InfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -49,12 +50,31 @@ export class InfraStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // Cognito — mirrors: cognito user pool + client in init-local-aws.sh
+    // Email delivery uses Cognito's default sender (no-reply@verificationemail.com).
+    // This is limited to 50 emails/day. For higher volume or better deliverability,
+    // switch to cognito.UserPoolEmail.withSES({ fromEmail, sesRegion }).
     // -------------------------------------------------------------------------
     const userPool = new cognito.UserPool(this, 'UserPool', {
       selfSignUpEnabled: false,
       signInAliases: { email: true },
       autoVerify: { email: true },
+      // Explicitly route all account recovery through email (no phone fallback)
+      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+      // Customise subjects so emails are less likely to be flagged as spam
+      userVerification: {
+        emailSubject: '3D Digitisation Hub — verify your email address',
+        emailBody: 'Hello,\n\nYour verification code is {####}\n\nIf you did not request this, you can ignore this email.',
+        emailStyle: cognito.VerificationEmailStyle.CODE,
+      },
+      passwordPolicy: {
+        minLength: 8,
+        requireLowercase: true,
+        requireUppercase: true,
+        requireDigits: true,
+        requireSymbols: false,
+      },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
@@ -125,20 +145,33 @@ export class InfraStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------------------------
-    // S3 → Lambda notifications — mirrors: put-bucket-notification-configuration
-    // Both lambdas trigger on s3:ObjectCreated:* under the assets/ prefix
+    // S3 → Lambda notifications via EventBridge
+    // S3 does not allow two notification rules with the same event type and
+    // overlapping prefix filter. EventBridge solves this cleanly: one S3
+    // notification fans out to both Lambdas via separate EventBridge rules.
     // -------------------------------------------------------------------------
-    uploadBucket.addEventNotification(
-      s3.EventType.OBJECT_CREATED,
-      new s3n.LambdaDestination(uploadListenerFn),
-      { prefix: 'assets/' },
-    );
+    uploadBucket.enableEventBridgeNotification();
 
-    uploadBucket.addEventNotification(
-      s3.EventType.OBJECT_CREATED,
-      new s3n.LambdaDestination(splatTransformFn),
-      { prefix: 'assets/' },
-    );
+    const assetCreatedPattern: events.EventPattern = {
+      source: ['aws.s3'],
+      detailType: ['Object Created'],
+      detail: {
+        bucket: { name: [uploadBucket.bucketName] },
+        object: { key: [{ prefix: 'assets/' }] },
+      },
+    };
+
+    new events.Rule(this, 'UploadListenerRule', {
+      ruleName: 'asset-upload-listener-rule',
+      eventPattern: assetCreatedPattern,
+      targets: [new targets.LambdaFunction(uploadListenerFn)],
+    });
+
+    new events.Rule(this, 'SplatTransformRule', {
+      ruleName: 'asset-splat-transform-rule',
+      eventPattern: assetCreatedPattern,
+      targets: [new targets.LambdaFunction(splatTransformFn)],
+    });
 
     // -------------------------------------------------------------------------
     // Management API — NestJS deployed as Lambda + API Gateway REST API
@@ -155,7 +188,17 @@ export class InfraStack extends cdk.Stack {
         handler: 'handler',
         bundling: {
           minify: true,
-          externalModules: [],
+          // NestJS uses optionalRequire() for these peer/optional packages at
+          // runtime — they are never actually needed in a standard REST API
+          // deployment, so marking them external silences the bundle errors.
+          externalModules: [
+            '@nestjs/websockets',
+            '@nestjs/websockets/socket-module',
+            '@nestjs/microservices',
+            '@nestjs/microservices/microservices-module',
+            'class-transformer',
+            'class-validator',
+          ],
         },
         role: lambdaRole,
         environment: {
@@ -217,6 +260,11 @@ export class InfraStack extends cdk.Stack {
     new s3deploy.BucketDeployment(this, 'FrontendDeployment', {
       sources: [
         s3deploy.Source.asset(path.join(__dirname, '../../frontend/dist')),
+        // runtime-config.json is fetched by the SPA at startup to discover the
+        // API Gateway URL without baking it into the Vite build at compile time.
+        s3deploy.Source.jsonData('runtime-config.json', {
+          apiUrl: restApi.url.replace(/\/$/, ''), // strip trailing slash
+        }),
       ],
       destinationBucket: frontendBucket,
       distribution,

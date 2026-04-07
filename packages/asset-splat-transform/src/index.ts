@@ -1,7 +1,7 @@
 import { S3Client, GetObjectCommand, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import * as path from 'path';
 import * as mime from 'mime-types';
-import { S3Event, S3Handler } from 'aws-lambda';
+import { EventBridgeEvent, Handler } from 'aws-lambda';
 import { existsSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
@@ -32,36 +32,46 @@ const s3Client = new S3Client({
     forcePathStyle: !!process.env.S3_ENDPOINT
 });
 
-export const handler: S3Handler = async (event: S3Event): Promise<void> => {
+// EventBridge S3 Object Created notification detail shape
+interface S3ObjectCreatedDetail {
+    version: string;
+    bucket: { name: string };
+    object: { key: string; size: number; etag: string; sequencer: string };
+    'request-id': string;
+    requester: string;
+    reason: string;
+}
+
+type S3ObjectCreatedEvent = EventBridgeEvent<'Object Created', S3ObjectCreatedDetail>;
+
+export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCreatedEvent): Promise<void> => {
     console.log(`Received S3 event for transform: ${JSON.stringify(event)}`);
 
-    for (const record of event.Records) {
-        const { s3: { bucket: { name: bucketName }, object: {key: objectKey}} } = record;
-        const key = decodeURIComponent(objectKey.replace(/\+/g, ' '));
-        
-        const parts = key.split('/');
-        if (parts.length < 2 || parts[0] !== 'assets') {
-            console.warn(`Skipping key ${key}: Does not contain an assets prefix`);
-            continue;
-        }
+    const bucketName = event.detail.bucket.name;
+    const key = event.detail.object.key;
 
-        const assetId = parts[1];
-        let originalFilename = assetId;
+    const parts = key.split('/');
+    if (parts.length < 2 || parts[0] !== 'assets') {
+        console.warn(`Skipping key ${key}: Does not contain an assets prefix`);
+        return;
+    }
 
-        try {
-            const headObj = await s3Client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }));
-            if (headObj.Metadata && headObj.Metadata['name']) {
-                originalFilename = headObj.Metadata['name'];
-            }
-        } catch {
-            console.warn(`Could not retrieve metadata for ${key} to determine original filename, using assetId as filename fallback`);
-        }
+    const assetId = parts[1];
+    let originalFilename = assetId;
 
-        try {
-            await processAssetToViewer(s3Client, bucketName, key, assetId, originalFilename);
-        } catch (error) {
-            console.error(`Failed to transform asset ${assetId}:`, error);
+    try {
+        const headObj = await s3Client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }));
+        if (headObj.Metadata && headObj.Metadata['name']) {
+            originalFilename = headObj.Metadata['name'];
         }
+    } catch {
+        console.warn(`Could not retrieve metadata for ${key} to determine original filename, using assetId as filename fallback`);
+    }
+
+    try {
+        await processAssetToViewer(s3Client, bucketName, key, assetId, originalFilename);
+    } catch (error) {
+        console.error(`Failed to transform asset ${assetId}:`, error);
     }
 };
 

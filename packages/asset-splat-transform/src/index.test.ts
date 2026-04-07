@@ -71,16 +71,24 @@ describe('asset-splat-transform integration test', () => {
             }
         }));
 
-        // Construct mock S3 Event
+        // Construct mock EventBridge S3 Object Created event
         const event = {
-            Records: [
-                {
-                    s3: {
-                        bucket: { name: bucketName },
-                        object: { key: encodeURIComponent(testKey) }
-                    }
-                }
-            ]
+            version: '0',
+            id: 'test-event-id',
+            source: 'aws.s3',
+            account: '000000000000',
+            time: new Date().toISOString(),
+            region: 'us-east-1',
+            resources: [`arn:aws:s3:::${bucketName}`],
+            'detail-type': 'Object Created',
+            detail: {
+                version: '0',
+                bucket: { name: bucketName },
+                object: { key: testKey, size: fileData.length, etag: 'test', sequencer: 'a' },
+                'request-id': 'test-req',
+                requester: '000000000000',
+                reason: 'PutObject',
+            },
         } as any;
 
         // Run the handler
