@@ -68,7 +68,7 @@ aws iam create-role \
 aws lambda create-function \
   --endpoint-url http://localstack:4566 \
   --function-name asset-upload-listener \
-  --runtime nodejs20.x \
+  --runtime nodejs24.x \
   --role arn:aws:iam::000000000000:role/lambda-execution-role \
   --handler index.handler \
   --zip-file fileb:///packages/asset-upload-listener/lambda.zip \
@@ -78,20 +78,14 @@ aws lambda create-function \
 aws lambda create-function \
   --endpoint-url http://localstack:4566 \
   --function-name asset-splat-transform \
-  --runtime nodejs20.x \
+  --runtime nodejs24.x \
   --role arn:aws:iam::000000000000:role/lambda-execution-role \
   --handler index.handler \
   --zip-file fileb:///packages/asset-splat-transform/lambda.zip \
   --environment Variables="{S3_ENDPOINT=http://localstack:4566,AWS_REGION=us-east-1}" \
   --timeout 900 \
-  --memory-size 3008 \
+  --memory-size 10240 \
   --region us-east-1 > /dev/null 2>&1 || \
-aws lambda update-function-configuration \
-  --endpoint-url http://localstack:4566 \
-  --function-name asset-splat-transform \
-  --timeout 900 \
-  --memory-size 3008 \
-  --region us-east-1 > /dev/null 2>&1 || true
 
 # Grant S3 permission to invoke Lambda
 aws lambda add-permission \

@@ -2,6 +2,9 @@ import { S3Client, GetObjectCommand, PutObjectCommand, HeadObjectCommand } from 
 import * as path from 'path';
 import * as mime from 'mime-types';
 import { S3Event, S3Handler } from 'aws-lambda';
+import { existsSync } from 'fs';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { createRequire } from 'module';
 import {
     readFile,
     getInputFormat,
@@ -12,9 +15,16 @@ import {
     WebPCodec
 } from '@playcanvas/splat-transform';
 
-// webp.wasm is co-located with this bundle; override the default path resolution
-// which breaks when the dist bundle is not in the original package's dist/ directory
-WebPCodec.wasmUrl = new URL('webp.wasm', import.meta.url).href;
+// Resolve webp.wasm correctly in both contexts:
+// - Lambda bundle: webp.wasm is co-located with index.mjs (copied by the build script)
+// - Test/dev: running from src/index.ts, so resolve from the installed package instead
+const _require = createRequire(import.meta.url);
+const colocatedWasm = new URL('webp.wasm', import.meta.url);
+if (existsSync(fileURLToPath(colocatedWasm))) {
+    WebPCodec.wasmUrl = colocatedWasm.href;
+} else {
+    WebPCodec.wasmUrl = pathToFileURL(_require.resolve('@playcanvas/splat-transform/lib/webp.wasm')).href;
+}
 
 const s3Client = new S3Client({
     region: process.env.AWS_REGION || 'us-east-1',

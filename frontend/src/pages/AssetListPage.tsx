@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetService } from '../services/api.service';
-import { Plus, Trash2, Globe, Info } from 'lucide-react';
+import { Plus, Trash2, Globe } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Spinner } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
@@ -13,25 +13,28 @@ interface Asset {
   metadata?: Record<string, string>;
 }
 
-const metadataColumns: Column<{ key: string; value: string }>[] = [
-  {
-    key: 'key',
-    header: 'Key',
-    render: (row) => <span className="text-muted-foreground">{row.key}</span>,
-  },
-  {
-    key: 'value',
-    header: 'Value',
-    render: (row) => <span>{row.value}</span>,
-  },
-];
+function formatFileSize(bytes: string | undefined): string {
+  const n = Number(bytes);
+  if (!bytes || isNaN(n)) return '—';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+  if (n < 1024 ** 4) return `${(n / 1024 ** 3).toFixed(1)} GB`;
+  return `${(n / 1024 ** 4).toFixed(1)} TB`;
+}
+
+function formatLastModified(ts: string | undefined): string {
+  const n = Number(ts);
+  if (!ts || isNaN(n)) return '—';
+  return new Date(n).toLocaleString();
+}
+
 
 export const AssetListPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [selectedAssetMetadata, setSelectedAssetMetadata] = useState<Record<string, string> | null>(null);
   const [viewerAsset, setViewerAsset] = useState<Asset | null>(null);
 
   const { data: assets, isLoading, error } = useQuery({
@@ -100,20 +103,27 @@ export const AssetListPage: React.FC = () => {
   const columns: Column<Asset>[] = [
     { key: 'id', header: 'ID', cellClassName: 'text-muted-foreground font-mono text-xs' },
     {
+      key: 'name',
+      header: 'Name',
+      render: (asset) => <span>{asset.metadata?.name ?? '—'}</span>,
+    },
+    {
+      key: 'size',
+      header: 'Size',
+      render: (asset) => <span>{formatFileSize(asset.metadata?.size)}</span>,
+    },
+    {
+      key: 'lastmodified',
+      header: 'Last Modified',
+      render: (asset) => <span>{formatLastModified(asset.metadata?.lastmodified)}</span>,
+    },
+    {
       key: 'actions',
       header: 'Actions',
       headerClassName: 'text-right',
       cellClassName: 'text-right',
       render: (asset) => (
         <HStack justify="flex-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedAssetMetadata(asset.metadata || {})}
-          >
-            <Info />
-            Metadata
-          </Button>
           <Button variant="ghost" size="sm" onClick={() => setViewerAsset(asset)}>
             <Globe />
             View
@@ -211,36 +221,6 @@ export const AssetListPage: React.FC = () => {
           </Dialog.Content>
         </Dialog.Positioner>
       </Dialog.Root>
-      {/* Metadata Dialog */}
-      <Dialog.Root open={selectedAssetMetadata !== null} onOpenChange={(e: any) => !e.open && setSelectedAssetMetadata(null)}>
-        <Dialog.Backdrop />
-        {/* @ts-ignore */}
-        <Dialog.Positioner>
-          {/* @ts-ignore */}
-          <Dialog.Content>
-            <Dialog.CloseTrigger />
-            <Dialog.Header>
-              {/* @ts-ignore */}
-              <Dialog.Title>Asset Metadata</Dialog.Title>
-            </Dialog.Header>
-            <Dialog.Body>
-              {selectedAssetMetadata && Object.keys(selectedAssetMetadata).length > 0 ? (
-                <Box overflowX="auto">
-                  <DataTable
-                    data={Object.entries(selectedAssetMetadata).map(([key, value]) => ({ key, value }))}
-                    columns={metadataColumns}
-                    keyExtractor={(row) => row.key}
-                    emptyMessage="No metadata available."
-                  />
-                </Box>
-              ) : (
-                <Box py={4}>No metadata available.</Box>
-              )}
-            </Dialog.Body>
-          </Dialog.Content>
-        </Dialog.Positioner>
-      </Dialog.Root>
-
       {/* Viewer Dialog */}
       <Dialog.Root open={viewerAsset !== null} onOpenChange={(e: any) => !e.open && setViewerAsset(null)}>
         <Dialog.Backdrop />
