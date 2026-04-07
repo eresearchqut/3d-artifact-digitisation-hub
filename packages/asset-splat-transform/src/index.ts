@@ -5,24 +5,24 @@ import { S3Event, S3Handler } from 'aws-lambda';
 import {
     readFile,
     getInputFormat,
-    MemoryReadFileSystem,
     writeHtml,
     FileSystem,
-    Writer
+    Writer,
+    MemoryReadFileSystem
 } from '@playcanvas/splat-transform';
 
 const s3Client = new S3Client({
     region: process.env.AWS_REGION || 'us-east-1',
     endpoint: process.env.S3_ENDPOINT || undefined,
-    forcePathStyle: true
+    forcePathStyle: !!process.env.S3_ENDPOINT
 });
 
 export const handler: S3Handler = async (event: S3Event): Promise<void> => {
     console.log(`Received S3 event for transform: ${JSON.stringify(event)}`);
 
     for (const record of event.Records) {
-        const bucket = record.s3.bucket.name;
-        const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
+        const { s3: { bucket: { name: bucketName }, object: {key: objectKey}} } = record;
+        const key = decodeURIComponent(objectKey.replace(/\+/g, ' '));
         
         const parts = key.split('/');
         if (parts.length < 2 || parts[0] !== 'assets') {
@@ -34,7 +34,7 @@ export const handler: S3Handler = async (event: S3Event): Promise<void> => {
         let originalFilename = assetId;
 
         try {
-            const headObj = await s3Client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+            const headObj = await s3Client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }));
             if (headObj.Metadata && headObj.Metadata['name']) {
                 originalFilename = headObj.Metadata['name'];
             }
@@ -43,7 +43,7 @@ export const handler: S3Handler = async (event: S3Event): Promise<void> => {
         }
 
         try {
-            await processAssetToViewer(s3Client, bucket, key, assetId, originalFilename);
+            await processAssetToViewer(s3Client, bucketName, key, assetId, originalFilename);
         } catch (error) {
             console.error(`Failed to transform asset ${assetId}:`, error);
         }
@@ -74,7 +74,7 @@ export async function processAssetToViewer(
         console.log(`Parsing ${inputFileName} in memory...`);
         const fsRead = new MemoryReadFileSystem();
         fsRead.set(inputFileName, bodyBuffer);
-        
+
         const tables = await readFile({
             filename: inputFileName,
             inputFormat: getInputFormat(inputFileName),
@@ -97,7 +97,7 @@ export async function processAssetToViewer(
         const outDir = path.resolve(`/tmp/viewer/${assetId}`);
         await fsPromises.mkdir(outDir, { recursive: true });
         
-        const fsWrite = new LambdaFileSystem();
+        const fsWrite = new NodeFileSystem();
         const htmlFileName = path.resolve(outDir, 'index.html');
         await writeHtml({
             filename: htmlFileName,
@@ -138,7 +138,7 @@ export async function processAssetToViewer(
 import * as fsSync from 'fs';
 import * as fsPromises from 'fs/promises';
 
-class LambdaFileSystem implements FileSystem {
+class NodeFileSystem implements FileSystem {
     public results = new Set<string>();
 
     createWriter(filename: string): Writer {

@@ -11,10 +11,14 @@
     "test:e2e": "npm run test:e2e --workspaces --if-present",
     "storybook": "npm run storybook --workspace=@3d-hub/management-frontend"
   },
-  "dependencies": {},
   "devDependencies": {
-    "typescript": "^5.5.3",
-    "concurrently": "^9.2.1"
+    "@testcontainers/localstack": "^11.13.0",
+    "@types/jest": "^30.0.0",
+    "concurrently": "^9.2.1",
+    "jest": "^30.3.0",
+    "testcontainers": "^11.13.0",
+    "ts-jest": "^29.4.9",
+    "typescript": "^5.5.3"
   },
   "private": true,
   "workspaces": [
