@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetService, getBaseUrl } from '../services/api.service';
 import { Plus, Trash2, Globe } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Progress, Text } from '@chakra-ui/react';
+import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Text } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
 
 interface Asset {
@@ -216,18 +216,22 @@ export const AssetListPage: React.FC = () => {
             <Dialog.Body>
               {isUploading ? (
                 <Box py={4}>
-                  <Text fontSize="sm" color="fg.muted" mb={4} truncate>
+                  <Text fontSize="sm" color="fg.muted" mb={3} truncate>
                     {uploadFileName}
                   </Text>
-                  <Progress.Root value={uploadProgress} max={100} size="md" colorPalette="blue">
-                    <HStack justify="space-between" mb={1.5}>
-                      <Progress.Label fontSize="sm">Uploading...</Progress.Label>
-                      <Progress.ValueText fontSize="sm" fontWeight="medium" />
-                    </HStack>
-                    <Progress.Track borderRadius="full">
-                      <Progress.Range />
-                    </Progress.Track>
-                  </Progress.Root>
+                  <HStack justify="space-between" mb={1.5}>
+                    <Text fontSize="sm">Uploading...</Text>
+                    <Text fontSize="sm" fontWeight="semibold">{uploadProgress}%</Text>
+                  </HStack>
+                  <Box h="8px" bg="bg.muted" borderRadius="full" overflow="hidden">
+                    <Box
+                      h="full"
+                      bg="blue.solid"
+                      borderRadius="full"
+                      w={`${uploadProgress}%`}
+                      style={{ transition: 'width 200ms ease' }}
+                    />
+                  </Box>
                 </Box>
               ) : (
                 <>
