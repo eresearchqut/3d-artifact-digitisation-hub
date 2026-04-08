@@ -12,13 +12,14 @@ import {
     getInputFormat,
     writeHtml,
     processDataTable,
+    computeSummary,
     FileSystem,
     Writer,
     ReadStream,
     WebPCodec,
     logger as splatLogger
 } from '@playcanvas/splat-transform';
-import type { ProcessAction, ReadSource, ReadFileSystem } from '@playcanvas/splat-transform';
+import type { ProcessAction, ReadSource, ReadFileSystem, DataTable } from '@playcanvas/splat-transform';
 
 // Resolve webp.wasm correctly in both contexts:
 // - Lambda bundle: webp.wasm is co-located with index.mjs (copied by the build script)
@@ -180,7 +181,8 @@ export async function processAssetToViewer(
             filename: htmlFileName,
             dataTable,
             bundle: false,
-            iterations: 0
+            iterations: 0,
+            viewerSettingsJson: computeViewerSettings(dataTable),
         }, fsWrite);
 
         // Writer.close() is synchronous so S3 uploads are kicked off during writeHtml.
@@ -192,6 +194,55 @@ export async function processAssetToViewer(
         logger.error('Failed to process asset', { assetId, error });
         throw error;
     }
+}
+
+/**
+ * Compute SuperSplat viewer camera settings that frame the scene tightly.
+ *
+ * Uses the bounding box of the Gaussian positions to place the camera at a
+ * distance that fits the bounding sphere inside a 60° FOV with 20% padding,
+ * aimed at the scene centroid. This avoids the default "zoomed-out" view when
+ * the scene is small relative to the viewer's default camera distance.
+ */
+function computeViewerSettings(dataTable: DataTable): Record<string, unknown> | undefined {
+    const summary = computeSummary(dataTable);
+    const xs = summary.columns['x'];
+    const ys = summary.columns['y'];
+    const zs = summary.columns['z'];
+
+    if (!xs || !ys || !zs) return undefined;
+
+    // Centroid from bounding-box midpoint — more stable than mean for scenes
+    // with asymmetric Gaussian distributions.
+    const cx = (xs.min + xs.max) / 2;
+    const cy = (ys.min + ys.max) / 2;
+    const cz = (zs.min + zs.max) / 2;
+
+    const radius = Math.sqrt(
+        ((xs.max - xs.min) / 2) ** 2 +
+        ((ys.max - ys.min) / 2) ** 2 +
+        ((zs.max - zs.min) / 2) ** 2,
+    );
+
+    if (radius <= 0) return undefined;
+
+    // For a 60° vertical FOV (SuperSplat default), half-angle = 30°.
+    // distance = radius / tan(30°), multiplied by 1.2 for comfortable padding.
+    const distance = (radius / Math.tan(Math.PI / 6)) * 1.2;
+
+    logger.info('Computed viewer framing', {
+        centroid: [cx, cy, cz],
+        radius: Math.round(radius * 1000) / 1000,
+        cameraDistance: Math.round(distance * 1000) / 1000,
+    });
+
+    return {
+        camera: {
+            // Offset slightly above (+Y) and directly in front (+Z) of centroid.
+            position: [cx, cy + radius * 0.25, cz + distance],
+            target: [cx, cy, cz],
+        },
+    };
 }
 
 /**
