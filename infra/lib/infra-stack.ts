@@ -124,6 +124,28 @@ export class InfraStack extends cdk.Stack {
     uploadBucket.grantReadWrite(apiLambdaRole);
     table.grantReadWriteData(apiLambdaRole);
 
+    // The API Lambda manages Cognito users and groups (teams).
+    apiLambdaRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'cognito-idp:AdminCreateUser',
+          'cognito-idp:AdminDeleteUser',
+          'cognito-idp:AdminGetUser',
+          'cognito-idp:AdminUpdateUserAttributes',
+          'cognito-idp:ListUsers',
+          'cognito-idp:CreateGroup',
+          'cognito-idp:DeleteGroup',
+          'cognito-idp:GetGroup',
+          'cognito-idp:UpdateGroup',
+          'cognito-idp:ListGroups',
+          'cognito-idp:AdminAddUserToGroup',
+          'cognito-idp:AdminRemoveUserFromGroup',
+          'cognito-idp:ListUsersInGroup',
+        ],
+        resources: [userPool.userPoolArn],
+      }),
+    );
+
     // -------------------------------------------------------------------------
     // asset-upload-listener Lambda — mirrors: create-function asset-upload-listener
     // -------------------------------------------------------------------------
