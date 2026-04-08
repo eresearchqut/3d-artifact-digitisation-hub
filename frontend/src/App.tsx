@@ -13,6 +13,7 @@ import { UserListPage } from './pages/UserListPage';
 import { TeamListPage } from './pages/TeamListPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
 import { AssetListPage } from './pages/AssetListPage';
+import { setBaseUrl } from './services/api.service';
 
 const queryClient: QueryClient = new QueryClient();
 
@@ -41,6 +42,10 @@ function App() {
         } catch {
           // runtime-config.json not present (local dev) — use env var fallback
         }
+
+        // Propagate the resolved URL to the API service so all subsequent
+        // data fetches (assets, users, orgs, etc.) use the correct base URL.
+        setBaseUrl(apiUrl);
 
         const response = await fetch(`${apiUrl}/config/amplify`);
         if (!response.ok) {

@@ -1,6 +1,12 @@
 import { Organisation, PaginatedResponse, Asset, Team, User } from './types';
 
-const BASE_URL: string = import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:3000';
+// BASE_URL is set at startup by App.tsx once runtime-config.json is resolved.
+// Falls back to the Vite env var (local dev) if setBaseUrl is never called.
+let BASE_URL: string = (import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+export function setBaseUrl(url: string): void {
+  BASE_URL = url.replace(/\/$/, '');
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response: Response = await fetch(`${BASE_URL}${path}`, {
