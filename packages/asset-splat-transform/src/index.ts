@@ -1,6 +1,7 @@
 import { S3Client, GetObjectCommand, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import * as path from 'path';
 import * as mime from 'mime-types';
+import { Readable } from 'node:stream';
 import { Context, EventBridgeEvent, Handler } from 'aws-lambda';
 import { existsSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -13,11 +14,11 @@ import {
     processDataTable,
     FileSystem,
     Writer,
-    MemoryReadFileSystem,
+    ReadStream,
     WebPCodec,
     logger as splatLogger
 } from '@playcanvas/splat-transform';
-import type { ProcessAction } from '@playcanvas/splat-transform';
+import type { ProcessAction, ReadSource, ReadFileSystem } from '@playcanvas/splat-transform';
 
 // Resolve webp.wasm correctly in both contexts:
 // - Lambda bundle: webp.wasm is co-located with index.mjs (copied by the build script)
@@ -117,14 +118,18 @@ export async function processAssetToViewer(
     const inputFileName = path.resolve(`${assetId}${ext}`);
 
     try {
-        logger.info('Downloading asset from S3 to memory', { bucket, key });
-        const getObj = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-        const bodyBuffer = await getObj.Body?.transformToByteArray();
-        if (!bodyBuffer) throw new Error('Empty S3 object body');
+        // Get the file size first so the parser can pre-allocate and report progress.
+        // This also validates the object exists before starting the expensive parse.
+        const headObj = await s3Client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        const fileSizeBytes = headObj.ContentLength ?? 0;
+        logger.info('Parsing splat file via S3 streaming', {
+            inputFileName,
+            fileSizeMB: Math.round(fileSizeBytes / 1024 / 1024),
+        });
 
-        logger.info('Parsing splat file in memory', { inputFileName });
-        const fsRead = new MemoryReadFileSystem();
-        fsRead.set(inputFileName, bodyBuffer);
+        // S3ReadFileSystem streams data directly from S3 using range requests —
+        // no intermediate bodyBuffer held in memory alongside the DataTable.
+        const fsRead = new S3ReadFileSystem(s3Client, bucket, key, fileSizeBytes);
 
         const tables = await readFile({
             filename: inputFileName,
@@ -186,6 +191,139 @@ export async function processAssetToViewer(
     } catch (error) {
         logger.error('Failed to process asset', { assetId, error });
         throw error;
+    }
+}
+
+/**
+ * S3-backed ReadFileSystem for @playcanvas/splat-transform.
+ *
+ * Streams the input splat file directly from S3 using HTTP range requests
+ * instead of loading the full body into a Uint8Array first. This removes the
+ * duplicate raw-buffer allocation that would otherwise sit in the V8 heap
+ * alongside the parsed DataTable, allowing much larger files to be processed
+ * within the Lambda memory limit.
+ */
+
+/** Pull-based stream that reads an S3 object (or byte range) as Node.js chunks. */
+class S3ReadStream extends ReadStream {
+    private startPromise: Promise<AsyncIterator<Buffer>> | null = null;
+    private currentChunk: Uint8Array | null = null;
+    private currentChunkOffset = 0;
+
+    constructor(
+        private readonly s3Client: S3Client,
+        private readonly command: GetObjectCommand,
+        expectedSize?: number,
+    ) {
+        super(expectedSize);
+    }
+
+    private getIterator(): Promise<AsyncIterator<Buffer>> {
+        if (!this.startPromise) {
+            this.startPromise = (async () => {
+                const response = await this.s3Client.send(this.command);
+                const readable = response.Body as Readable;
+                return readable[Symbol.asyncIterator]() as AsyncIterator<Buffer>;
+            })();
+        }
+        return this.startPromise;
+    }
+
+    async pull(target: Uint8Array): Promise<number> {
+        const iterator = await this.getIterator();
+        let filled = 0;
+
+        while (filled < target.length) {
+            if (this.currentChunk && this.currentChunkOffset < this.currentChunk.length) {
+                const available = this.currentChunk.length - this.currentChunkOffset;
+                const toCopy = Math.min(available, target.length - filled);
+                target.set(
+                    this.currentChunk.subarray(
+                        this.currentChunkOffset,
+                        this.currentChunkOffset + toCopy,
+                    ),
+                    filled,
+                );
+                filled += toCopy;
+                this.currentChunkOffset += toCopy;
+                this.bytesRead += toCopy;
+                continue;
+            }
+
+            const result = await iterator.next();
+            if (result.done) break;
+
+            const buf = result.value;
+            this.currentChunk = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+            this.currentChunkOffset = 0;
+        }
+
+        return filled;
+    }
+
+    close(): void {
+        // Signal the upstream readable to stop if we're done early.
+        this.startPromise?.then((iter) => iter.return?.());
+    }
+}
+
+class S3ReadSource implements ReadSource {
+    readonly seekable = true;
+
+    constructor(
+        private readonly s3Client: S3Client,
+        private readonly bucket: string,
+        private readonly key: string,
+        public readonly size: number | undefined,
+    ) {}
+
+    read(start = 0, end?: number): ReadStream {
+        // S3 range header is inclusive on both ends; our API uses exclusive end.
+        let range: string | undefined;
+        if (start > 0 || end !== undefined) {
+            range = `bytes=${start}-${end !== undefined ? end - 1 : ''}`;
+        }
+        const expectedSize =
+            end !== undefined
+                ? end - start
+                : this.size !== undefined
+                  ? this.size - start
+                  : undefined;
+
+        return new S3ReadStream(
+            this.s3Client,
+            new GetObjectCommand({
+                Bucket: this.bucket,
+                Key: this.key,
+                ...(range ? { Range: range } : {}),
+            }),
+            expectedSize,
+        );
+    }
+
+    close(): void {}
+}
+
+class S3ReadFileSystem implements ReadFileSystem {
+    constructor(
+        private readonly s3Client: S3Client,
+        private readonly bucket: string,
+        private readonly key: string,
+        // Pass a known size to avoid an extra HeadObject if already known.
+        private readonly knownSize?: number,
+    ) {}
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async createSource(_filename: string): Promise<ReadSource> {
+        const size =
+            this.knownSize !== undefined
+                ? this.knownSize
+                : (
+                      await this.s3Client.send(
+                          new HeadObjectCommand({ Bucket: this.bucket, Key: this.key }),
+                      )
+                  ).ContentLength;
+        return new S3ReadSource(this.s3Client, this.bucket, this.key, size);
     }
 }
 

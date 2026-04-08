@@ -157,12 +157,15 @@ export class InfraStack extends cdk.Stack {
       role: lambdaRole,
       environment: {
         AWS_REGION_OVERRIDE: this.region,
+        // Allow V8 to use most of the Lambda's memory. Without this Node.js caps
+        // its heap at ~1.5 GB regardless of the configured Lambda memory size.
+        NODE_OPTIONS: '--max-old-space-size=9216',
         // Optional: set to cap Gaussian count for very large splats.
         // e.g. '1000000' to decimate to 1M Gaussians before compression.
         // SPLAT_MAX_GAUSSIANS: '1000000',
       },
       timeout: cdk.Duration.seconds(900),
-      memorySize: 3008,
+      memorySize: 10240,
     });
 
     // -------------------------------------------------------------------------

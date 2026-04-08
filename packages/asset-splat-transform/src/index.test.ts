@@ -5,8 +5,6 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
-
-
 describe('asset-splat-transform integration test', () => {
     let container: StartedLocalStackContainer;
     let s3Client: S3Client;
