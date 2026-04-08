@@ -6,7 +6,6 @@ import {
   CognitoIdentityProviderClient,
   CognitoIdentityProviderClientConfig,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { LambdaClient, LambdaClientConfig } from '@aws-sdk/client-lambda';
 
 /**
  * Build explicit credentials only when a custom endpoint is set (local dev via
@@ -84,30 +83,7 @@ function localCredentials(
       },
       inject: [ConfigService],
     },
-    {
-      provide: LambdaClient,
-      useFactory: (configService: ConfigService) => {
-        const endpoint = configService.get<string>('LAMBDA_ENDPOINT');
-        const region = configService.get<string>('AWS_REGION');
-        const config: LambdaClientConfig = {
-          region,
-          endpoint,
-          credentials: localCredentials(
-            endpoint,
-            configService.get('AWS_ACCESS_KEY_ID'),
-            configService.get('AWS_SECRET_ACCESS_KEY'),
-          ),
-        };
-        return new LambdaClient(config);
-      },
-      inject: [ConfigService],
-    },
   ],
-  exports: [
-    S3Client,
-    DynamoDBClient,
-    CognitoIdentityProviderClient,
-    LambdaClient,
-  ],
+  exports: [S3Client, DynamoDBClient, CognitoIdentityProviderClient],
 })
 export class ClientModule {}

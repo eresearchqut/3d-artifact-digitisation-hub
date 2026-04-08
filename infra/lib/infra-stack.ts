@@ -243,17 +243,11 @@ export class InfraStack extends cdk.Stack {
           S3_UPLOAD_BUCKET: uploadBucket.bucketName,
           USER_POOL_ID: userPool.userPoolId,
           USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
-          SPLAT_TRANSFORM_FUNCTION_NAME: splatTransformFn.functionName,
         },
         timeout: cdk.Duration.seconds(30),
         memorySize: 512,
       },
     );
-
-    // Grant the API Lambda's role invoke permission on splatTransformFn.
-    // This must use apiLambdaRole (not the shared lambdaRole) to avoid a
-    // CloudFormation circular dependency: splatTransformFn → lambdaRole → splatTransformFn.
-    splatTransformFn.grantInvoke(apiLambdaRole);
 
     const restApi = new apigateway.LambdaRestApi(this, 'ManagementRestApi', {
       restApiName: 'management-api',

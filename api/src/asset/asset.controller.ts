@@ -9,7 +9,6 @@ import {
   Query,
   Res,
   StreamableFile,
-  HttpCode,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -69,16 +68,6 @@ export class AssetController {
   @ApiResponse({ status: 404, description: 'Asset not found' })
   generateUploadUrl(@Body() body?: { metadata?: Record<string, string> }) {
     return this.assetService.generateUploadUrl(body?.metadata);
-  }
-
-  @Post(':id/reprocess')
-  @HttpCode(202)
-  @ApiOperation({ summary: 'Retrigger splat-transform for an asset' })
-  @ApiParam({ name: 'id', description: 'Asset ID' })
-  @ApiResponse({ status: 202, description: 'Reprocessing started' })
-  @ApiResponse({ status: 404, description: 'Asset not found' })
-  async reprocess(@Param('id') id: string): Promise<void> {
-    return this.assetService.reprocess(id);
   }
 
   @Get(':id/viewer/:file')
