@@ -23,7 +23,6 @@ import {
   ApiPaginatedResponse,
   PaginatedResponse,
 } from '../utils/pagination.model';
-
 @ApiTags('asset')
 @Controller('asset')
 export class AssetController {
@@ -79,17 +78,27 @@ export class AssetController {
     description: 'Viewer filename',
     enum: ['index.html', 'index.css', 'index.js', 'index.sog', 'settings.json'],
   })
-  @ApiResponse({ status: 200, description: 'Viewer file content' })
+  @ApiResponse({
+    status: 200,
+    description: 'Viewer file content (index.html streamed directly)',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to presigned S3 URL (all other files)',
+  })
   @ApiResponse({ status: 400, description: 'Invalid filename' })
   @ApiResponse({ status: 404, description: 'Viewer file not found' })
   async getViewerFile(
     @Param('id') id: string,
     @Param('file') file: string,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<StreamableFile> {
-    const { file: streamable, contentType } =
-      await this.assetService.getViewerFile(id, file);
-    res.set({ 'Content-Type': contentType });
-    return streamable;
+  ): Promise<StreamableFile | undefined> {
+    const result = await this.assetService.getViewerFile(id, file);
+    if (result.type === 'redirect') {
+      res.redirect(302, result.url);
+      return;
+    }
+    res.set({ 'Content-Type': result.contentType });
+    return result.file;
   }
 }

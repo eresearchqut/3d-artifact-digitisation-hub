@@ -75,21 +75,44 @@ describe('AssetController', () => {
   });
 
   describe('getViewerFile', () => {
-    it('should stream viewer file with correct content-type', async () => {
+    it('should stream index.html directly', async () => {
       const mockStream = new StreamableFile(
         Uint8Array.from(Buffer.from('<html/>')),
       );
       jest.spyOn(service, 'getViewerFile').mockResolvedValue({
+        type: 'stream',
         file: mockStream,
         contentType: 'text/html',
       });
-      const mockRes = { set: jest.fn() } as unknown as Response;
+      const mockRes = {
+        set: jest.fn(),
+        redirect: jest.fn(),
+      } as unknown as Response;
 
       const result = await controller.getViewerFile('1', 'index.html', mockRes);
 
       expect(service.getViewerFile).toHaveBeenCalledWith('1', 'index.html');
       expect(mockRes.set).toHaveBeenCalledWith({ 'Content-Type': 'text/html' });
       expect(result).toBe(mockStream);
+    });
+
+    it('should redirect non-html viewer files to presigned URL', async () => {
+      jest.spyOn(service, 'getViewerFile').mockResolvedValue({
+        type: 'redirect',
+        url: 'https://s3.amazonaws.com/presigned',
+      });
+      const mockRes = {
+        set: jest.fn(),
+        redirect: jest.fn(),
+      } as unknown as Response;
+
+      const result = await controller.getViewerFile('1', 'index.sog', mockRes);
+
+      expect(mockRes.redirect).toHaveBeenCalledWith(
+        302,
+        'https://s3.amazonaws.com/presigned',
+      );
+      expect(result).toBeUndefined();
     });
   });
 });

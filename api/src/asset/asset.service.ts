@@ -32,6 +32,15 @@ const VIEWER_FILES: Record<string, string> = {
   'settings.json': 'application/json',
 };
 
+// index.html must be served directly so the iframe's base URL stays on the API
+// domain. This allows the viewer to resolve relative resource URLs (index.sog,
+// index.js, etc.) back through the API, which then redirect to presigned S3 URLs.
+const STREAM_DIRECTLY = new Set(['index.html']);
+
+export type ViewerFileResult =
+  | { type: 'redirect'; url: string }
+  | { type: 'stream'; file: StreamableFile; contentType: string };
+
 @Injectable()
 export class AssetService {
   private readonly tableName: string;
@@ -189,10 +198,7 @@ export class AssetService {
     return new StreamableFile(response.Body as Readable);
   }
 
-  async getViewerFile(
-    id: string,
-    filename: string,
-  ): Promise<{ file: StreamableFile; contentType: string }> {
+  async getViewerFile(id: string, filename: string): Promise<ViewerFileResult> {
     const contentType = VIEWER_FILES[filename];
     if (!contentType) {
       throw new BadRequestException(
@@ -202,17 +208,27 @@ export class AssetService {
 
     const bucketName =
       this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
-    const command = new GetObjectCommand({
-      Bucket: bucketName,
-      Key: `viewer/${id}/${filename}`,
-    });
+    const s3Key = `viewer/${id}/${filename}`;
+
+    const command = new GetObjectCommand({ Bucket: bucketName, Key: s3Key });
 
     try {
-      const response = await this.s3Client.send(command);
-      return {
-        file: new StreamableFile(response.Body as Readable),
-        contentType,
-      };
+      if (STREAM_DIRECTLY.has(filename)) {
+        const response = await this.s3Client.send(command);
+        return {
+          type: 'stream',
+          file: new StreamableFile(response.Body as Readable),
+          contentType,
+        };
+      }
+
+      // All other files: 302 redirect to a short-lived presigned S3 GET URL.
+      // The browser fetches binary/JS/CSS directly from S3, avoiding Lambda
+      // payload limits and binary encoding issues.
+      const url = await getSignedUrl(this.s3Client, command, {
+        expiresIn: 300,
+      });
+      return { type: 'redirect', url };
     } catch {
       throw new NotFoundException(
         `Viewer file '${filename}' not found for asset ${id}`,
