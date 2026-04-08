@@ -18,6 +18,9 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -129,12 +132,54 @@ export class AssetService {
   async remove(id: string): Promise<void> {
     await this.findOne(id);
 
-    const command = new DeleteItemCommand({
-      TableName: this.tableName,
-      Key: marshall({ PK: `ASSET#${id}`, SK: `ASSET#${id}` }),
-    });
+    const bucketName =
+      this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
 
-    await this.dynamoDBClient.send(command);
+    // Delete raw upload and all viewer files concurrently
+    await Promise.all([
+      this.dynamoDBClient.send(
+        new DeleteItemCommand({
+          TableName: this.tableName,
+          Key: marshall({ PK: `ASSET#${id}`, SK: `ASSET#${id}` }),
+        }),
+      ),
+      this.s3Client.send(
+        new DeleteObjectCommand({ Bucket: bucketName, Key: `assets/${id}` }),
+      ),
+      this.deleteViewerFiles(bucketName, id),
+    ]);
+  }
+
+  private async deleteViewerFiles(
+    bucketName: string,
+    assetId: string,
+  ): Promise<void> {
+    const prefix = `viewer/${assetId}/`;
+    let continuationToken: string | undefined;
+
+    do {
+      const list = await this.s3Client.send(
+        new ListObjectsV2Command({
+          Bucket: bucketName,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        }),
+      );
+
+      const keys = (list.Contents ?? []).map((obj) => ({ Key: obj.Key! }));
+      if (keys.length > 0) {
+        await this.s3Client.send(
+          new DeleteObjectsCommand({
+            Bucket: bucketName,
+            Delete: { Objects: keys, Quiet: true },
+          }),
+        );
+      }
+
+      continuationToken = list.IsTruncated
+        ? list.NextContinuationToken
+        : undefined;
+    } while (continuationToken);
   }
 
   async generateUploadUrl(
