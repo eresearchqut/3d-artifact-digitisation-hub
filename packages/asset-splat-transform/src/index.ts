@@ -139,11 +139,13 @@ export async function processAssetToViewer(
         const dataTable = processDataTable(tables[0], actions);
         console.log(`Processing ${dataTable.numRows} Gaussians...`);
 
-        console.log(`Converting to HTML viewer on disk...`);
-        const outDir = path.resolve(`/tmp/viewer/${assetId}`);
-        await fsPromises.mkdir(outDir, { recursive: true });
-        
-        const fsWrite = new NodeFileSystem();
+        const s3Prefix = `viewer/${assetId}`;
+        // outDir is a virtual base path used only for computing relative S3 keys —
+        // nothing is written to disk with S3FileSystem.
+        const outDir = `/tmp/viewer/${assetId}`;
+        const fsWrite = new S3FileSystem(s3Client, bucket, s3Prefix, outDir);
+
+        console.log(`Converting to HTML viewer and streaming to s3://${bucket}/${s3Prefix}/`);
         const htmlFileName = path.resolve(outDir, 'index.html');
         await writeHtml({
             filename: htmlFileName,
@@ -152,24 +154,9 @@ export async function processAssetToViewer(
             iterations: 0
         }, fsWrite);
 
-        console.log(`Uploading ${fsWrite.results.size} files to s3://${bucket}/viewer/${assetId}/`);
-
-        // Upload all viewer files in parallel
-        await Promise.all(
-            Array.from(fsWrite.results).map(async (file) => {
-                const contentType = (mime.lookup(file) as string | false) || 'application/octet-stream';
-                const relativePath = path.relative(outDir, file);
-                const uploadKey = `viewer/${assetId}/${relativePath}`;
-                const fileData = await fsPromises.readFile(file);
-                await s3Client.send(new PutObjectCommand({
-                    Bucket: bucket,
-                    Key: uploadKey,
-                    Body: fileData,
-                    ContentType: contentType,
-                }));
-                console.log(`Uploaded ${uploadKey} (${contentType})`);
-            })
-        );
+        // Writer.close() is synchronous so S3 uploads are kicked off during writeHtml.
+        // Wait for all of them to complete before returning.
+        await fsWrite.flush();
 
         console.log(`Successfully converted and uploaded viewer for asset ${assetId}`);
     } catch (error) {
@@ -178,28 +165,78 @@ export async function processAssetToViewer(
     }
 }
 
-import * as fsSync from 'fs';
-import * as fsPromises from 'fs/promises';
+/**
+ * S3-backed FileSystem implementation for @playcanvas/splat-transform.
+ *
+ * Writer.write() and Writer.close() are synchronous, so we buffer each file's
+ * chunks in memory and kick off an async S3 PutObject from close(). Call
+ * flush() after writeHtml() to await all in-flight uploads.
+ *
+ * This avoids writing to Lambda's /tmp entirely, removing the 512 MB disk
+ * limit for large splat files.
+ */
+class S3FileSystem implements FileSystem {
+    private readonly s3Client: S3Client;
+    private readonly bucket: string;
+    private readonly prefix: string;
+    private readonly baseDir: string;
+    private readonly pendingUploads: Promise<void>[] = [];
 
-class NodeFileSystem implements FileSystem {
-    public results = new Set<string>();
+    constructor(
+        s3Client: S3Client,
+        bucket: string,
+        prefix: string,
+        baseDir: string,
+    ) {
+        this.s3Client = s3Client;
+        this.bucket = bucket;
+        this.prefix = prefix;
+        this.baseDir = baseDir;
+    }
 
     createWriter(filename: string): Writer {
         const fullPath = path.resolve(filename);
-        const fd = fsSync.openSync(fullPath, 'w');
-        this.results.add(fullPath);
+        const relativePath = path.relative(path.resolve(this.baseDir), fullPath);
+        const s3Key = `${this.prefix}/${relativePath}`;
+        const contentType =
+            (mime.lookup(filename) as string | false) || 'application/octet-stream';
+        const chunks: Uint8Array[] = [];
 
         return {
             write: (data: Uint8Array) => {
-                fsSync.writeSync(fd, data);
+                // Copy the slice — the caller may reuse the underlying buffer
+                chunks.push(new Uint8Array(data));
             },
             close: () => {
-                fsSync.closeSync(fd);
-            }
+                const upload = (async () => {
+                    const totalLength = chunks.reduce((n, c) => n + c.length, 0);
+                    const body = Buffer.allocUnsafe(totalLength);
+                    let offset = 0;
+                    for (const chunk of chunks) {
+                        body.set(chunk, offset);
+                        offset += chunk.length;
+                    }
+                    await this.s3Client.send(
+                        new PutObjectCommand({
+                            Bucket: this.bucket,
+                            Key: s3Key,
+                            Body: body,
+                            ContentType: contentType,
+                        }),
+                    );
+                    console.log(`Uploaded ${s3Key} (${contentType}, ${totalLength} bytes)`);
+                })();
+                this.pendingUploads.push(upload);
+            },
         };
     }
 
-    async mkdir(dir: string): Promise<void> {
-        await fsPromises.mkdir(path.resolve(dir), { recursive: true });
+    // S3 uses key prefixes — no real directories to create.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async mkdir(_dir: string): Promise<void> {}
+
+    /** Resolves once all S3 uploads kicked off by close() have completed. */
+    async flush(): Promise<void> {
+        await Promise.all(this.pendingUploads);
     }
 }
