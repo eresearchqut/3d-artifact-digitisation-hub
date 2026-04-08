@@ -35,7 +35,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSignOut }) => {
         <Box p="6">
           <Link to="/">
             <Text fontSize="2xl" fontWeight="bold" color={{ base: 'blue.600', _dark: 'blue.400' }}>
-              Sovereign
+              3D Hub
             </Text>
           </Link>
         </Box>

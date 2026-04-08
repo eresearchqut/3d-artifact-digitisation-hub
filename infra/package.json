@@ -9,7 +9,8 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "deploy": "cdk deploy"
   },
   "dependencies": {
     "aws-cdk-lib": "2.248.0",

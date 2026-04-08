@@ -22,16 +22,20 @@ function App() {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        // In production, /runtime-config.json is written into the S3 bucket by CDK
-        // at deploy time and contains the real API Gateway URL. In local dev the
-        // file won't exist, so we fall back to VITE_MANAGEMENT_API_URL / localhost.
-        let apiUrl = import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:3000';
+        // runtime-config.json is written into the S3 bucket by CDK at deploy time
+        // and contains the real API Gateway URL. In local dev the file won't exist,
+        // so we fall back to VITE_MANAGEMENT_API_URL / localhost.
+        // We check Content-Type before parsing: CloudFront's 403→200 SPA redirect
+        // would return text/html (index.html) for a missing file — if we get HTML
+        // back we skip it and use the env-var fallback.
+        let apiUrl = (import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:3000').replace(/\/$/, '');
         try {
-          const runtimeConfig = await fetch('/runtime-config.json');
-          if (runtimeConfig.ok) {
-            const runtimeData = await runtimeConfig.json();
+          const runtimeConfigResponse = await fetch('/runtime-config.json');
+          const contentType = runtimeConfigResponse.headers.get('content-type') ?? '';
+          if (runtimeConfigResponse.ok && contentType.includes('application/json')) {
+            const runtimeData = await runtimeConfigResponse.json();
             if (runtimeData.apiUrl) {
-              apiUrl = runtimeData.apiUrl;
+              apiUrl = String(runtimeData.apiUrl).replace(/\/$/, '');
             }
           }
         } catch {

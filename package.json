@@ -9,7 +9,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "npm run test:e2e --workspaces --if-present",
-    "storybook": "npm run storybook --workspace=@3d-hub/management-frontend"
+    "storybook": "npm run storybook --workspace=@3d-hub/management-frontend",
+    "deploy": "npm run deploy --workspace=@3d-hub/infra"
   },
   "devDependencies": {
     "@testcontainers/localstack": "^11.13.0",

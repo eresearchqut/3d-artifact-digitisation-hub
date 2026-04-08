@@ -1,8 +1,8 @@
 import * as path from 'path';
+import { execSync } from 'child_process';
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
@@ -176,30 +176,43 @@ export class InfraStack extends cdk.Stack {
     // -------------------------------------------------------------------------
     // Management API — NestJS deployed as Lambda + API Gateway REST API
     // See: https://docs.nestjs.com/faq/serverless
-    // Entry point: api/src/lambda.ts (uses @vendia/serverless-express)
+    // Entry point: api/src/lambda.ts
+    //
+    // Uses webpack (via nest build --webpack) rather than esbuild because esbuild
+    // does not support TypeScript's emitDecoratorMetadata, which NestJS DI requires
+    // to resolve constructor parameter types at runtime.
+    // webpack + ts-loader honours tsconfig.build.json and emits __metadata() calls.
     // -------------------------------------------------------------------------
-    const apiLambda = new lambdaNodejs.NodejsFunction(
+    const apiDir = path.join(__dirname, '../../api');
+    const apiLambda = new lambda.Function(
       this,
       'ManagementApiHandler',
       {
         functionName: 'management-api',
         runtime: lambda.Runtime.NODEJS_24_X,
-        entry: path.join(__dirname, '../../api/src/lambda.ts'),
-        handler: 'handler',
-        bundling: {
-          minify: true,
-          // NestJS uses optionalRequire() for these peer/optional packages at
-          // runtime — they are never actually needed in a standard REST API
-          // deployment, so marking them external silences the bundle errors.
-          externalModules: [
-            '@nestjs/websockets',
-            '@nestjs/websockets/socket-module',
-            '@nestjs/microservices',
-            '@nestjs/microservices/microservices-module',
-            'class-transformer',
-            'class-validator',
-          ],
-        },
+        code: lambda.Code.fromAsset(apiDir, {
+          bundling: {
+            // Local bundling: runs on the host machine if Docker is unavailable
+            local: {
+              tryBundle(outputDir: string): boolean {
+                try {
+                  execSync('npm run build:lambda', { cwd: apiDir, stdio: 'inherit' });
+                  execSync(`cp ${path.join(apiDir, 'dist/lambda.js')} ${outputDir}/lambda.js`);
+                  return true;
+                } catch {
+                  return false;
+                }
+              },
+            },
+            // Docker fallback
+            image: lambda.Runtime.NODEJS_24_X.bundlingImage,
+            command: [
+              'bash', '-c',
+              'npm run build:lambda && cp dist/lambda.js /asset-output/lambda.js',
+            ],
+          },
+        }),
+        handler: 'lambda.handler',
         role: lambdaRole,
         environment: {
           DYNAMODB_TABLE_NAME: table.tableName,
@@ -257,13 +270,35 @@ export class InfraStack extends cdk.Stack {
       },
     );
 
+    const frontendDir = path.join(__dirname, '../../frontend');
+
+    // Both the frontend SPA assets and runtime-config.json are deployed in one
+    // BucketDeployment so that CDK's default prune behaviour (prune: true) does not
+    // delete runtime-config.json after it is written. S3 infers Content-Type from
+    // file extension so .json files automatically receive application/json.
     new s3deploy.BucketDeployment(this, 'FrontendDeployment', {
       sources: [
-        s3deploy.Source.asset(path.join(__dirname, '../../frontend/dist')),
-        // runtime-config.json is fetched by the SPA at startup to discover the
-        // API Gateway URL without baking it into the Vite build at compile time.
+        s3deploy.Source.asset(frontendDir, {
+          bundling: {
+            local: {
+              tryBundle(outputDir: string): boolean {
+                try {
+                  execSync('npm run build', { cwd: frontendDir, stdio: 'inherit' });
+                  execSync(`cp -r ${path.join(frontendDir, 'dist')}/* ${outputDir}/`);
+                  return true;
+                } catch {
+                  return false;
+                }
+              },
+            },
+            image: cdk.DockerImage.fromRegistry('node:20'),
+            command: ['bash', '-c', 'npm run build && cp -r dist/* /asset-output/'],
+          },
+        }),
+        // restApi.url is a CloudFormation token — CDK resolves it to the real URL
+        // (with trailing slash) when the custom-resource Lambda runs at deploy time.
         s3deploy.Source.jsonData('runtime-config.json', {
-          apiUrl: restApi.url.replace(/\/$/, ''), // strip trailing slash
+          apiUrl: restApi.url,
         }),
       ],
       destinationBucket: frontendBucket,
