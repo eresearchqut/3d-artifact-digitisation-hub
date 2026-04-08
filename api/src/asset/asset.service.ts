@@ -19,6 +19,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { Asset } from './asset.model';
@@ -49,6 +50,7 @@ export class AssetService {
     private readonly configService: ConfigService,
     private readonly dynamoDBClient: DynamoDBClient,
     private readonly s3Client: S3Client,
+    private readonly lambdaClient: LambdaClient,
   ) {
     this.tableName =
       this.configService.get<string>('DYNAMODB_TABLE_NAME') || '3d-hub-assets';
@@ -183,6 +185,57 @@ export class AssetService {
       expiresIn: 3600,
     });
     return { uploadUrl, id };
+  }
+
+  async reprocess(id: string): Promise<void> {
+    // Verify asset exists before invoking
+    await this.findOne(id);
+
+    const functionName = this.configService.get<string>(
+      'SPLAT_TRANSFORM_FUNCTION_NAME',
+    );
+    if (!functionName) {
+      throw new BadRequestException(
+        'SPLAT_TRANSFORM_FUNCTION_NAME is not configured',
+      );
+    }
+
+    const bucketName =
+      this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
+
+    // Build a synthetic EventBridge S3 Object Created event matching the shape
+    // that the splat-transform Lambda handler expects.
+    const event = {
+      version: '0',
+      id: randomUUID(),
+      source: 'aws.s3',
+      account: 'manual',
+      time: new Date().toISOString(),
+      region: this.configService.get<string>('AWS_REGION') || 'ap-southeast-2',
+      resources: [`arn:aws:s3:::${bucketName}`],
+      'detail-type': 'Object Created',
+      detail: {
+        version: '0',
+        bucket: { name: bucketName },
+        object: {
+          key: `assets/${id}`,
+          size: 0,
+          etag: '',
+          sequencer: '',
+        },
+        'request-id': 'manual-reprocess',
+        requester: 'api',
+        reason: 'PutObject',
+      },
+    };
+
+    await this.lambdaClient.send(
+      new InvokeCommand({
+        FunctionName: functionName,
+        InvocationType: 'Event', // async — don't wait for completion
+        Payload: Buffer.from(JSON.stringify(event)),
+      }),
+    );
   }
 
   async getFile(id: string): Promise<StreamableFile> {

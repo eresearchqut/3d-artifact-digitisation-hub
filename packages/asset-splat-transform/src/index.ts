@@ -9,11 +9,13 @@ import {
     readFile,
     getInputFormat,
     writeHtml,
+    processDataTable,
     FileSystem,
     Writer,
     MemoryReadFileSystem,
     WebPCodec
 } from '@playcanvas/splat-transform';
+import type { ProcessAction } from '@playcanvas/splat-transform';
 
 // Resolve webp.wasm correctly in both contexts:
 // - Lambda bundle: webp.wasm is co-located with index.mjs (copied by the build script)
@@ -104,9 +106,9 @@ export async function processAssetToViewer(
             filename: inputFileName,
             inputFormat: getInputFormat(inputFileName),
             options: {
-                iterations: 3,
+                iterations: 0,
                 lodSelect: [],
-                unbundled: true,
+                unbundled: false,
                 lodChunkCount: 0,
                 lodChunkExtent: 0
             },
@@ -118,6 +120,25 @@ export async function processAssetToViewer(
             throw new Error('No data table returned from readFile');
         }
 
+        // Optimise for speed over quality.
+        // filterBands:0 is the biggest win — it removes all SH coefficient columns,
+        // cutting the number of WebP texture writes from ~8 down to 2-3.
+        const actions: ProcessAction[] = [
+            { kind: 'filterNaN' },
+            { kind: 'filterBands', value: 0 },
+        ];
+
+        const maxGaussians = process.env.SPLAT_MAX_GAUSSIANS
+            ? parseInt(process.env.SPLAT_MAX_GAUSSIANS, 10)
+            : null;
+        if (maxGaussians !== null && tables[0].numRows > maxGaussians) {
+            console.log(`Decimating from ${tables[0].numRows} to ${maxGaussians} Gaussians...`);
+            actions.push({ kind: 'decimate', count: maxGaussians, percent: null });
+        }
+
+        const dataTable = processDataTable(tables[0], actions);
+        console.log(`Processing ${dataTable.numRows} Gaussians...`);
+
         console.log(`Converting to HTML viewer on disk...`);
         const outDir = path.resolve(`/tmp/viewer/${assetId}`);
         await fsPromises.mkdir(outDir, { recursive: true });
@@ -126,32 +147,29 @@ export async function processAssetToViewer(
         const htmlFileName = path.resolve(outDir, 'index.html');
         await writeHtml({
             filename: htmlFileName,
-            dataTable: tables[0],
+            dataTable,
             bundle: false,
-            iterations: 3
+            iterations: 0
         }, fsWrite);
 
-        console.log(`Uploading generated files to s3://${bucket}/viewer/${assetId}/`);
+        console.log(`Uploading ${fsWrite.results.size} files to s3://${bucket}/viewer/${assetId}/`);
 
-        for (const file of fsWrite.results) {
-            let contentType = mime.lookup(file);
-            if (!contentType) {
-                if (file.endsWith('.sog')) contentType = 'application/octet-stream';
-                else contentType = 'application/octet-stream';
-            }
-
-            const relativePath = path.relative(outDir, file);
-            const uploadKey = `viewer/${assetId}/${relativePath}`;
-            const fileData = await fsPromises.readFile(file);
-
-            await s3Client.send(new PutObjectCommand({
-                Bucket: bucket,
-                Key: uploadKey,
-                Body: fileData,
-                ContentType: contentType
-            }));
-            console.log(`Uploaded ${uploadKey} (${contentType})`);
-        }
+        // Upload all viewer files in parallel
+        await Promise.all(
+            Array.from(fsWrite.results).map(async (file) => {
+                const contentType = (mime.lookup(file) as string | false) || 'application/octet-stream';
+                const relativePath = path.relative(outDir, file);
+                const uploadKey = `viewer/${assetId}/${relativePath}`;
+                const fileData = await fsPromises.readFile(file);
+                await s3Client.send(new PutObjectCommand({
+                    Bucket: bucket,
+                    Key: uploadKey,
+                    Body: fileData,
+                    ContentType: contentType,
+                }));
+                console.log(`Uploaded ${uploadKey} (${contentType})`);
+            })
+        );
 
         console.log(`Successfully converted and uploaded viewer for asset ${assetId}`);
     } catch (error) {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetService, getBaseUrl } from '../services/api.service';
-import { Plus, Trash2, Globe } from 'lucide-react';
+import { Plus, Trash2, Globe, RefreshCw } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Spinner } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
@@ -47,6 +47,10 @@ export const AssetListPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assets'] });
     },
+  });
+
+  const reprocessMutation = useMutation({
+    mutationFn: (id: string) => assetService.reprocess(id),
   });
 
 
@@ -121,6 +125,17 @@ export const AssetListPage: React.FC = () => {
           <Button variant="ghost" size="sm" onClick={() => setViewerAsset(asset)}>
             <Globe />
             View
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            colorPalette="blue"
+            loading={reprocessMutation.isPending && reprocessMutation.variables === asset.id}
+            onClick={() => reprocessMutation.mutate(asset.id)}
+            title="Retrigger splat transform"
+          >
+            <RefreshCw />
+            Reprocess
           </Button>
           <Button
             variant="ghost"

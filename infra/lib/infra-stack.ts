@@ -93,7 +93,8 @@ export class InfraStack extends cdk.Stack {
       },
     });
 
-    // Shared Lambda execution role — mirrors: iam create-role in init-local-aws.sh
+    // Shared execution role for background processor Lambdas (upload-listener, splat-transform)
+    // — mirrors: iam create-role in init-local-aws.sh
     const lambdaRole = new iam.Role(this, 'LambdaExecutionRole', {
       roleName: 'lambda-execution-role',
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -105,6 +106,23 @@ export class InfraStack extends cdk.Stack {
     });
     uploadBucket.grantReadWrite(lambdaRole);
     table.grantReadWriteData(lambdaRole);
+
+    // Separate execution role for the API Lambda.
+    // Must be separate from lambdaRole to avoid a CloudFormation circular
+    // dependency: splatTransformFn uses lambdaRole, so granting lambdaRole
+    // invoke permission on splatTransformFn would make the role and the function
+    // mutually dependent. Using a distinct role breaks the cycle.
+    const apiLambdaRole = new iam.Role(this, 'ApiLambdaExecutionRole', {
+      roleName: 'api-lambda-execution-role',
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          'service-role/AWSLambdaBasicExecutionRole',
+        ),
+      ],
+    });
+    uploadBucket.grantReadWrite(apiLambdaRole);
+    table.grantReadWriteData(apiLambdaRole);
 
     // -------------------------------------------------------------------------
     // asset-upload-listener Lambda — mirrors: create-function asset-upload-listener
@@ -139,6 +157,9 @@ export class InfraStack extends cdk.Stack {
       role: lambdaRole,
       environment: {
         AWS_REGION_OVERRIDE: this.region,
+        // Optional: set to cap Gaussian count for very large splats.
+        // e.g. '1000000' to decimate to 1M Gaussians before compression.
+        // SPLAT_MAX_GAUSSIANS: '1000000',
       },
       timeout: cdk.Duration.seconds(900),
       memorySize: 3008,
@@ -213,17 +234,23 @@ export class InfraStack extends cdk.Stack {
           },
         }),
         handler: 'lambda.handler',
-        role: lambdaRole,
+        role: apiLambdaRole,
         environment: {
           DYNAMODB_TABLE_NAME: table.tableName,
           S3_UPLOAD_BUCKET: uploadBucket.bucketName,
           USER_POOL_ID: userPool.userPoolId,
           USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          SPLAT_TRANSFORM_FUNCTION_NAME: splatTransformFn.functionName,
         },
         timeout: cdk.Duration.seconds(30),
         memorySize: 512,
       },
     );
+
+    // Grant the API Lambda's role invoke permission on splatTransformFn.
+    // This must use apiLambdaRole (not the shared lambdaRole) to avoid a
+    // CloudFormation circular dependency: splatTransformFn → lambdaRole → splatTransformFn.
+    splatTransformFn.grantInvoke(apiLambdaRole);
 
     const restApi = new apigateway.LambdaRestApi(this, 'ManagementRestApi', {
       restApiName: 'management-api',

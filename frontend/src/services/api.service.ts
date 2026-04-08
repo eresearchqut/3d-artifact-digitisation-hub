@@ -110,4 +110,6 @@ export const assetService = {
   remove: (id: string): Promise<void> => request<void>(`/asset/${id}`, { method: 'DELETE' }),
   generateUploadUrl: (metadata?: Record<string, string>): Promise<{ uploadUrl: string, id: string }> =>
     request<{ uploadUrl: string, id: string }>(`/asset/upload`, { method: 'POST', body: JSON.stringify({ metadata }) }),
+  reprocess: (id: string): Promise<void> =>
+    request<void>(`/asset/${id}/reprocess`, { method: 'POST' }),
 };
