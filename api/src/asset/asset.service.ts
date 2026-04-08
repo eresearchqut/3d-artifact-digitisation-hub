@@ -11,6 +11,7 @@ import {
   DynamoDBClient,
   GetItemCommand,
   DeleteItemCommand,
+  PutItemCommand,
   ScanCommand,
 } from '@aws-sdk/client-dynamodb';
 import {
@@ -141,12 +142,32 @@ export class AssetService {
 
     const bucketName =
       this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
+
+    // Pre-write the asset record to DynamoDB so metadata is stored independently
+    // of the presigned URL — avoids SigV4 header mismatch when metadata is baked
+    // into the signed headers and the browser PUT doesn't exactly match.
+    const item = {
+      PK: `ASSET#${id}`,
+      SK: `ASSET#${id}`,
+      bucket: bucketName,
+      key: `assets/${id}`,
+      name: metadata?.name || id,
+      uploadedAt: new Date().toISOString(),
+      status: 'pending',
+      ...(metadata && Object.keys(metadata).length > 0 && { metadata }),
+    };
+    await this.dynamoDBClient.send(
+      new PutItemCommand({
+        TableName: this.tableName,
+        Item: marshall(item, { removeUndefinedValues: true }),
+      }),
+    );
+
+    // Generate the presigned URL with only Content-Type signed — no metadata headers
     const command = new PutObjectCommand({
       Bucket: bucketName,
       Key: `assets/${id}`,
       ContentType: 'application/octet-stream',
-      ...(metadata &&
-        Object.keys(metadata).length > 0 && { Metadata: metadata }),
     });
 
     const uploadUrl = await getSignedUrl(this.s3Client, command, {

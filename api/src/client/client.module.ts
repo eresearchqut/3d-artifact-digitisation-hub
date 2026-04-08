@@ -7,6 +7,23 @@ import {
   CognitoIdentityProviderClientConfig,
 } from '@aws-sdk/client-cognito-identity-provider';
 
+/**
+ * Build explicit credentials only when a custom endpoint is set (local dev via
+ * LocalStack). In Lambda the runtime injects temporary STS credentials
+ * (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY + AWS_SESSION_TOKEN) and the SDK
+ * resolves them automatically from the environment — passing only the first two
+ * without the session token produces "invalid security token" errors.
+ */
+function localCredentials(
+  endpoint: string | undefined,
+  accessKeyId: string | undefined,
+  secretAccessKey: string | undefined,
+) {
+  return endpoint && accessKeyId && secretAccessKey
+    ? { accessKeyId, secretAccessKey }
+    : undefined;
+}
+
 @Global()
 @Module({
   imports: [ConfigModule],
@@ -15,22 +32,17 @@ import {
       provide: S3Client,
       useFactory: (configService: ConfigService) => {
         const endpoint = configService.get<string>('S3_ENDPOINT');
-        const accessKeyId = configService.get<string>('AWS_ACCESS_KEY_ID');
-        const secretAccessKey = configService.get<string>(
-          'AWS_SECRET_ACCESS_KEY',
-        );
         const region = configService.get<string>('AWS_REGION');
-
         const config: S3ClientConfig = {
           region,
           endpoint,
           forcePathStyle: !!endpoint,
-          credentials:
-            accessKeyId && secretAccessKey
-              ? { accessKeyId, secretAccessKey }
-              : undefined,
+          credentials: localCredentials(
+            endpoint,
+            configService.get('AWS_ACCESS_KEY_ID'),
+            configService.get('AWS_SECRET_ACCESS_KEY'),
+          ),
         };
-
         return new S3Client(config);
       },
       inject: [ConfigService],
@@ -38,22 +50,17 @@ import {
     {
       provide: DynamoDBClient,
       useFactory: (configService: ConfigService) => {
-        const accessKeyId = configService.get<string>('AWS_ACCESS_KEY_ID');
-        const secretAccessKey = configService.get<string>(
-          'AWS_SECRET_ACCESS_KEY',
-        );
-        const region = configService.get<string>('AWS_REGION');
         const endpoint = configService.get<string>('DYNAMODB_ENDPOINT');
-
+        const region = configService.get<string>('AWS_REGION');
         const config: DynamoDBClientConfig = {
           region,
           endpoint,
-          credentials:
-            accessKeyId && secretAccessKey
-              ? { accessKeyId, secretAccessKey }
-              : undefined,
+          credentials: localCredentials(
+            endpoint,
+            configService.get('AWS_ACCESS_KEY_ID'),
+            configService.get('AWS_SECRET_ACCESS_KEY'),
+          ),
         };
-
         return new DynamoDBClient(config);
       },
       inject: [ConfigService],
@@ -61,22 +68,17 @@ import {
     {
       provide: CognitoIdentityProviderClient,
       useFactory: (configService: ConfigService) => {
-        const accessKeyId = configService.get<string>('AWS_ACCESS_KEY_ID');
-        const secretAccessKey = configService.get<string>(
-          'AWS_SECRET_ACCESS_KEY',
-        );
-        const region = configService.get<string>('AWS_REGION');
         const endpoint = configService.get<string>('COGNITO_ENDPOINT');
-
+        const region = configService.get<string>('AWS_REGION');
         const config: CognitoIdentityProviderClientConfig = {
           region,
           endpoint,
-          credentials:
-            accessKeyId && secretAccessKey
-              ? { accessKeyId, secretAccessKey }
-              : undefined,
+          credentials: localCredentials(
+            endpoint,
+            configService.get('AWS_ACCESS_KEY_ID'),
+            configService.get('AWS_SECRET_ACCESS_KEY'),
+          ),
         };
-
         return new CognitoIdentityProviderClient(config);
       },
       inject: [ConfigService],

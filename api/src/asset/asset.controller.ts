@@ -10,7 +10,13 @@ import {
   Res,
   StreamableFile,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiParam,
+} from '@nestjs/swagger';
 import { AssetService } from './asset.service';
 import { Asset } from './asset.model';
 import {
@@ -86,5 +92,4 @@ export class AssetController {
     res.set({ 'Content-Type': contentType });
     return streamable;
   }
-
 }

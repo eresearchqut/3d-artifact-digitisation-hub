@@ -19,7 +19,26 @@ async function initApp() {
 
 async function setup(event: any, context: Context) {
   const app = await initApp();
-  serverlessExpressInstance = serverlessExpress({ app });
+  serverlessExpressInstance = serverlessExpress({
+    app,
+    binarySettings: {
+      // Only base64-encode explicitly binary content types.
+      // An empty content-type (e.g. OPTIONS preflight) must return false or
+      // API Gateway will try to decode the empty body and break CORS.
+      isBinary: ({ headers }: { headers: Record<string, string> }) => {
+        const ct = (headers['content-type'] || '')
+          .toLowerCase()
+          .split(';')[0]
+          .trim();
+        if (!ct) return false;
+        return (
+          ct === 'application/octet-stream' ||
+          ct.startsWith('image/') ||
+          ct.startsWith('font/')
+        );
+      },
+    },
+  });
   return serverlessExpressInstance(event, context);
 }
 

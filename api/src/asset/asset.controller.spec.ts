@@ -76,7 +76,9 @@ describe('AssetController', () => {
 
   describe('getViewerFile', () => {
     it('should stream viewer file with correct content-type', async () => {
-      const mockStream = new StreamableFile(Uint8Array.from(Buffer.from('<html/>')));
+      const mockStream = new StreamableFile(
+        Uint8Array.from(Buffer.from('<html/>')),
+      );
       jest.spyOn(service, 'getViewerFile').mockResolvedValue({
         file: mockStream,
         contentType: 'text/html',

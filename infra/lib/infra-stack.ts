@@ -229,6 +229,10 @@ export class InfraStack extends cdk.Stack {
       restApiName: 'management-api',
       handler: apiLambda,
       proxy: true,
+      // Only declare the binary types actually served (SOG viewer file + images).
+      // Using '*/*' breaks CORS preflight by causing API Gateway to attempt
+      // base64-decoding the OPTIONS MOCK integration's empty response.
+      binaryMediaTypes: ['application/octet-stream', 'image/webp', 'image/png', 'image/jpeg'],
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,

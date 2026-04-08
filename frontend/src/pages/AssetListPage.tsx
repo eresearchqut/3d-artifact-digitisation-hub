@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { assetService } from '../services/api.service';
+import { assetService, getBaseUrl } from '../services/api.service';
 import { Plus, Trash2, Globe } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Spinner } from '@chakra-ui/react';
@@ -72,18 +72,12 @@ export const AssetListPage: React.FC = () => {
       };
       const { uploadUrl } = await assetService.generateUploadUrl(metadata);
 
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/octet-stream',
-      };
-      // S3 expects metadata headers to be prepended with x-amz-meta-
-      Object.entries(metadata).forEach(([k, v]) => {
-        headers[`x-amz-meta-${k}`] = v;
-      });
-
       await fetch(uploadUrl, {
         method: 'PUT',
         body: file,
-        headers,
+        headers: {
+          'Content-Type': 'application/octet-stream',
+        },
       });
 
       // Let S3 upload trigger the Lambda and update DynamoDB.
@@ -236,9 +230,10 @@ export const AssetListPage: React.FC = () => {
             <Dialog.Body p={0} m={0} h="full" w="full" overflow="hidden">
               {viewerAsset && (
                 <iframe
-                  src={`${import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:3000'}/asset/${viewerAsset.id}/viewer/index.html`}
+                  src={`${getBaseUrl()}/asset/${viewerAsset.id}/viewer/index.html`}
                   style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                   title="Asset Viewer"
+                  allow="xr-spatial-tracking; fullscreen"
                   allowFullScreen
                 />
               )}

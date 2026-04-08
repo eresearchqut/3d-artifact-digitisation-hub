@@ -1,6 +1,5 @@
 import { EventBridgeEvent, Handler } from 'aws-lambda';
-import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
-import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { DynamoDBClient, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall } from '@aws-sdk/util-dynamodb';
 
 // EventBridge S3 Object Created notification detail shape
@@ -14,8 +13,6 @@ interface S3ObjectCreatedDetail {
 }
 
 type S3ObjectCreatedEvent = EventBridgeEvent<'Object Created', S3ObjectCreatedDetail>;
-
-const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1', endpoint: process.env.S3_ENDPOINT || undefined, forcePathStyle: true });
 
 const dynamoClient = new DynamoDBClient({
   endpoint: process.env.DYNAMODB_ENDPOINT || undefined,
@@ -37,35 +34,30 @@ export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCrea
 
   const assetId = parts[1];
 
-  let metadata: Record<string, string> = {};
   try {
-    const headObj = await s3Client.send(new HeadObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    }));
-    if (headObj.Metadata) {
-      metadata = headObj.Metadata;
-    }
-  } catch (e) {
-    console.error(`Failed to fetch metadata for ${key}`, e);
-  }
-
-  const filename = metadata['name'] || assetId;
-
-  const item = {
-    PK: `ASSET#${assetId}`,
-    SK: `ASSET#${assetId}`,
-    bucket,
-    key,
-    name: filename,
-    uploadedAt: new Date().toISOString(),
-    metadata,
-  };
-
-  try {
-    const command = new PutItemCommand({
+    // Use UpdateItem so we preserve the name and metadata pre-written by the API
+    // when the presigned URL was generated. If the record doesn't exist for any
+    // reason, if_not_exists ensures a sensible fallback name.
+    const command = new UpdateItemCommand({
       TableName: process.env.DYNAMODB_TABLE || '3d-hub-assets',
-      Item: marshall(item, { removeUndefinedValues: true }),
+      Key: marshall({ PK: `ASSET#${assetId}`, SK: `ASSET#${assetId}` }),
+      UpdateExpression:
+        'SET #bucket = :bucket, #key = :key, #uploadedAt = :uploadedAt, ' +
+        '#name = if_not_exists(#name, :name), #status = :status',
+      ExpressionAttributeNames: {
+        '#bucket': 'bucket',
+        '#key': 'key',
+        '#uploadedAt': 'uploadedAt',
+        '#name': 'name',
+        '#status': 'status',
+      },
+      ExpressionAttributeValues: marshall({
+        ':bucket': bucket,
+        ':key': key,
+        ':uploadedAt': new Date().toISOString(),
+        ':name': assetId,
+        ':status': 'uploaded',
+      }),
     });
     await dynamoClient.send(command);
     console.log(`Successfully recorded asset upload for asset ${assetId}`);

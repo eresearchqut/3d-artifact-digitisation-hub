@@ -1,4 +1,5 @@
 import { Organisation, PaginatedResponse, Asset, Team, User } from './types';
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 // BASE_URL is set at startup by App.tsx once runtime-config.json is resolved.
 // Falls back to the Vite env var (local dev) if setBaseUrl is never called.
@@ -8,11 +9,30 @@ export function setBaseUrl(url: string): void {
   BASE_URL = url.replace(/\/$/, '');
 }
 
+export function getBaseUrl(): string {
+  return BASE_URL;
+}
+
+async function getAuthHeader(): Promise<Record<string, string>> {
+  try {
+    const session = await fetchAuthSession();
+    const token = session.tokens?.idToken?.toString();
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+  } catch {
+    // Not signed in or session expired — let the request proceed without a token
+  }
+  return {};
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const authHeader = await getAuthHeader();
   const response: Response = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...authHeader,
       ...options?.headers,
     },
   });
