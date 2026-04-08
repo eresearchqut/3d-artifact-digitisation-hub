@@ -1,10 +1,11 @@
 import { S3Client, GetObjectCommand, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import * as path from 'path';
 import * as mime from 'mime-types';
-import { EventBridgeEvent, Handler } from 'aws-lambda';
+import { Context, EventBridgeEvent, Handler } from 'aws-lambda';
 import { existsSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
+import { Logger } from '@aws-lambda-powertools/logger';
 import {
     readFile,
     getInputFormat,
@@ -13,7 +14,8 @@ import {
     FileSystem,
     Writer,
     MemoryReadFileSystem,
-    WebPCodec
+    WebPCodec,
+    logger as splatLogger
 } from '@playcanvas/splat-transform';
 import type { ProcessAction } from '@playcanvas/splat-transform';
 
@@ -28,8 +30,29 @@ if (existsSync(fileURLToPath(colocatedWasm))) {
     WebPCodec.wasmUrl = pathToFileURL(_require.resolve('@playcanvas/splat-transform/lib/webp.wasm')).href;
 }
 
+const logger = new Logger({ serviceName: 'asset-splat-transform' });
+
+// Bridge splat-transform's internal logger to the powertools logger so all
+// library progress messages (e.g. "Writing positions", "Generating morton order")
+// appear as structured JSON in CloudWatch under the same invocation context.
+splatLogger.setLogger({
+    log: (...args: any[]) => logger.info(args.join(' ')),
+    warn: (...args: any[]) => logger.warn(args.join(' ')),
+    error: (...args: any[]) => logger.error(args.join(' ')),
+    debug: (...args: any[]) => logger.debug(args.join(' ')),
+    output: (text: string) => logger.info(text),
+    onProgress: (node) => {
+        const name = node.stepName ? ` [${node.stepName}]` : '';
+        logger.debug(`Progress${name}`, {
+            step: node.step,
+            totalSteps: node.totalSteps,
+            depth: node.depth,
+        });
+    },
+});
+
 const s3Client = new S3Client({
-    region: process.env.AWS_REGION || 'us-east-1',
+    region: process.env.AWS_REGION,
     endpoint: process.env.S3_ENDPOINT || undefined,
     forcePathStyle: !!process.env.S3_ENDPOINT
 });
@@ -46,15 +69,16 @@ interface S3ObjectCreatedDetail {
 
 type S3ObjectCreatedEvent = EventBridgeEvent<'Object Created', S3ObjectCreatedDetail>;
 
-export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCreatedEvent): Promise<void> => {
-    console.log(`Received S3 event for transform: ${JSON.stringify(event)}`);
+export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCreatedEvent, context: Context): Promise<void> => {
+    logger.addContext(context);
+    logger.info('Received S3 event for transform', { event });
 
     const bucketName = event.detail.bucket.name;
     const key = event.detail.object.key;
 
     const parts = key.split('/');
     if (parts.length < 2 || parts[0] !== 'assets') {
-        console.warn(`Skipping key ${key}: Does not contain an assets prefix`);
+        logger.warn('Skipping key: does not contain an assets prefix', { key });
         return;
     }
 
@@ -67,13 +91,13 @@ export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCrea
             originalFilename = headObj.Metadata['name'];
         }
     } catch {
-        console.warn(`Could not retrieve metadata for ${key} to determine original filename, using assetId as filename fallback`);
+        logger.warn('Could not retrieve object metadata; falling back to assetId as filename', { key, assetId });
     }
 
     try {
         await processAssetToViewer(s3Client, bucketName, key, assetId, originalFilename);
     } catch (error) {
-        console.error(`Failed to transform asset ${assetId}:`, error);
+        logger.error('Failed to transform asset', { assetId, error });
     }
 };
 
@@ -93,12 +117,12 @@ export async function processAssetToViewer(
     const inputFileName = path.resolve(`${assetId}${ext}`);
 
     try {
-        console.log(`Downloading s3://${bucket}/${key} to memory...`);
+        logger.info('Downloading asset from S3 to memory', { bucket, key });
         const getObj = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
         const bodyBuffer = await getObj.Body?.transformToByteArray();
         if (!bodyBuffer) throw new Error('Empty S3 object body');
 
-        console.log(`Parsing ${inputFileName} in memory...`);
+        logger.info('Parsing splat file in memory', { inputFileName });
         const fsRead = new MemoryReadFileSystem();
         fsRead.set(inputFileName, bodyBuffer);
 
@@ -132,12 +156,12 @@ export async function processAssetToViewer(
             ? parseInt(process.env.SPLAT_MAX_GAUSSIANS, 10)
             : null;
         if (maxGaussians !== null && tables[0].numRows > maxGaussians) {
-            console.log(`Decimating from ${tables[0].numRows} to ${maxGaussians} Gaussians...`);
+            logger.info('Decimating Gaussians', { from: tables[0].numRows, to: maxGaussians });
             actions.push({ kind: 'decimate', count: maxGaussians, percent: null });
         }
 
         const dataTable = processDataTable(tables[0], actions);
-        console.log(`Processing ${dataTable.numRows} Gaussians...`);
+        logger.info('Processing Gaussians', { count: dataTable.numRows });
 
         const s3Prefix = `viewer/${assetId}`;
         // outDir is a virtual base path used only for computing relative S3 keys —
@@ -145,7 +169,7 @@ export async function processAssetToViewer(
         const outDir = `/tmp/viewer/${assetId}`;
         const fsWrite = new S3FileSystem(s3Client, bucket, s3Prefix, outDir);
 
-        console.log(`Converting to HTML viewer and streaming to s3://${bucket}/${s3Prefix}/`);
+        logger.info('Converting to HTML viewer and streaming to S3', { bucket, prefix: s3Prefix });
         const htmlFileName = path.resolve(outDir, 'index.html');
         await writeHtml({
             filename: htmlFileName,
@@ -158,9 +182,9 @@ export async function processAssetToViewer(
         // Wait for all of them to complete before returning.
         await fsWrite.flush();
 
-        console.log(`Successfully converted and uploaded viewer for asset ${assetId}`);
+        logger.info('Successfully converted and uploaded viewer', { assetId });
     } catch (error) {
-        console.error(`Failed to process asset ${assetId}:`, error);
+        logger.error('Failed to process asset', { assetId, error });
         throw error;
     }
 }
@@ -224,7 +248,7 @@ class S3FileSystem implements FileSystem {
                             ContentType: contentType,
                         }),
                     );
-                    console.log(`Uploaded ${s3Key} (${contentType}, ${totalLength} bytes)`);
+                    logger.info('Uploaded viewer file to S3', { s3Key, contentType, bytes: totalLength });
                 })();
                 this.pendingUploads.push(upload);
             },

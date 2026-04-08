@@ -1,6 +1,7 @@
-import { EventBridgeEvent, Handler } from 'aws-lambda';
+import { Context, EventBridgeEvent, Handler } from 'aws-lambda';
 import { DynamoDBClient, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall } from '@aws-sdk/util-dynamodb';
+import { Logger } from '@aws-lambda-powertools/logger';
 
 // EventBridge S3 Object Created notification detail shape
 interface S3ObjectCreatedDetail {
@@ -19,8 +20,11 @@ const dynamoClient = new DynamoDBClient({
   region: process.env.AWS_REGION || 'us-east-1',
 });
 
-export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCreatedEvent): Promise<void> => {
-  console.log(`Received event: ${JSON.stringify(event)}`);
+const logger = new Logger({ serviceName: 'asset-upload-listener' });
+
+export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCreatedEvent, context: Context): Promise<void> => {
+  logger.addContext(context);
+  logger.info('Received S3 upload event', { event });
 
   const bucket = event.detail.bucket.name;
   const key = event.detail.object.key;
@@ -28,7 +32,7 @@ export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCrea
   // Key format expected: assets/{asset_id}
   const parts = key.split('/');
   if (parts.length < 2 || parts[0] !== 'assets') {
-    console.warn(`Skipping key ${key}: Does not contain an assets prefix`);
+    logger.warn('Skipping key: does not contain an assets prefix', { key });
     return;
   }
 
@@ -60,9 +64,9 @@ export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCrea
       }),
     });
     await dynamoClient.send(command);
-    console.log(`Successfully recorded asset upload for asset ${assetId}`);
+    logger.info('Successfully recorded asset upload', { assetId });
   } catch (error) {
-    console.error(`Failed to record asset upload for key ${key}:`, error);
+    logger.error('Failed to record asset upload', { key, error });
     throw error;
   }
 };

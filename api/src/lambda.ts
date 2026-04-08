@@ -3,7 +3,10 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import { configure as serverlessExpress } from '@codegenie/serverless-express';
 import { Context } from 'aws-lambda';
 import * as express from 'express';
+import { Logger } from '@aws-lambda-powertools/logger';
 import { AppModule } from './app.module';
+
+const logger = new Logger({ serviceName: 'management-api' });
 
 let serverlessExpressInstance: any;
 
@@ -43,6 +46,7 @@ async function setup(event: any, context: Context) {
 }
 
 export const handler = async (event: any, context: Context) => {
+  logger.addContext(context);
   if (serverlessExpressInstance)
     return serverlessExpressInstance(event, context);
   return setup(event, context);

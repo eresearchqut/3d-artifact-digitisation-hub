@@ -26,6 +26,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@3d-hub/asset-splat-transform": "^1.0.0"
+    "@3d-hub/asset-splat-transform": "^1.0.0",
+    "@aws-lambda-powertools/logger": "^2.32.0"
   }
 }
