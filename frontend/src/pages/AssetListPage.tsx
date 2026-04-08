@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetService, getBaseUrl } from '../services/api.service';
 import { Plus, Trash2, Globe } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Spinner } from '@chakra-ui/react';
+import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Progress, Text } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
 
 interface Asset {
@@ -35,6 +35,8 @@ export const AssetListPage: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadFileName, setUploadFileName] = useState('');
   const [viewerAsset, setViewerAsset] = useState<Asset | null>(null);
 
   const { data: assets, isLoading, error } = useQuery({
@@ -64,6 +66,9 @@ export const AssetListPage: React.FC = () => {
   const handleFileSelect = async (file: File) => {
     try {
       setIsUploading(true);
+      setUploadProgress(0);
+      setUploadFileName(file.name);
+
       const metadata = {
         name: file.name,
         size: file.size.toString(),
@@ -72,24 +77,40 @@ export const AssetListPage: React.FC = () => {
       };
       const { uploadUrl } = await assetService.generateUploadUrl(metadata);
 
-      await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': 'application/octet-stream',
-        },
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            setUploadProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadProgress(100);
+            resolve();
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Upload failed'));
+        xhr.send(file);
       });
 
-      // Let S3 upload trigger the Lambda and update DynamoDB.
-      // Wait a brief moment to let DynamoDB update before refreshing.
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['assets'] });
         setIsUploading(false);
+        setUploadProgress(0);
         setIsUploadOpen(false);
       }, 1000);
     } catch (err) {
       console.error('Upload failed', err);
       setIsUploading(false);
+      setUploadProgress(0);
       setIsUploadOpen(false);
     }
   };
@@ -194,9 +215,19 @@ export const AssetListPage: React.FC = () => {
             </Dialog.Header>
             <Dialog.Body>
               {isUploading ? (
-                <Box textAlign="center" py={10}>
-                  <Spinner size="xl" />
-                  <Box mt={4} color="fg.muted">Uploading asset...</Box>
+                <Box py={4}>
+                  <Text fontSize="sm" color="fg.muted" mb={4} truncate>
+                    {uploadFileName}
+                  </Text>
+                  <Progress.Root value={uploadProgress} max={100} size="md" colorPalette="blue">
+                    <HStack justify="space-between" mb={1.5}>
+                      <Progress.Label fontSize="sm">Uploading...</Progress.Label>
+                      <Progress.ValueText fontSize="sm" fontWeight="medium" />
+                    </HStack>
+                    <Progress.Track borderRadius="full">
+                      <Progress.Range />
+                    </Progress.Track>
+                  </Progress.Root>
                 </Box>
               ) : (
                 <>
