@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Building2, Users, UserCircle, Globe, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, UserCircle, Globe, LogOut } from 'lucide-react';
 import { Box, Flex, VStack, HStack, Text, Heading, Icon } from '@chakra-ui/react';
 import { Button } from '../Button/Button';
 import { ColorModeButton } from '../ui/color-mode';
@@ -13,7 +13,6 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, onSignOut }) => {
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-    { to: '/organisation', label: 'Organisations', icon: Building2 },
     { to: '/team', label: 'Teams', icon: Users },
     { to: '/user', label: 'Users', icon: UserCircle },
     { to: '/asset', label: 'Assets', icon: Globe },

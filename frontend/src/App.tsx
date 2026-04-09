@@ -7,8 +7,6 @@ import '@aws-amplify/ui-react/styles.css';
 import { Routes, Route } from 'react-router-dom';
 import { Heading, Flex, Box } from '@chakra-ui/react';
 import { Layout } from './components/Layout/Layout';
-import { OrganisationListPage } from './pages/OrganisationListPage';
-import { OrganisationDetailPage } from './pages/OrganisationDetailPage';
 import { UserListPage } from './pages/UserListPage';
 import { TeamListPage } from './pages/TeamListPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
@@ -109,8 +107,6 @@ function App() {
                   <p style={{ color: "gray" }}>Select a resource from the sidebar to begin management.</p>
                 </Box>
               } />
-              <Route path="/organisation" element={<OrganisationListPage />} />
-              <Route path="/organisation/:id" element={<OrganisationDetailPage />} />
               <Route path="/team" element={<TeamListPage />} />
               <Route path="/team/:id" element={<TeamDetailPage />} />
               <Route path="/user" element={<UserListPage />} />

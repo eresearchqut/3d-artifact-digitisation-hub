@@ -1,4 +1,4 @@
-import { Organisation, PaginatedResponse, Asset, Team, User } from './types';
+import { PaginatedResponse, Asset, Team, User } from './types';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 // BASE_URL is set at startup by App.tsx once runtime-config.json is resolved.
@@ -49,29 +49,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const text = await response.text();
   return text ? JSON.parse(text) : ({} as T);
 }
-
-export const organisationService = {
-  findAll: (limit: number = 10, cursor?: string): Promise<PaginatedResponse<Organisation>> =>
-    request<PaginatedResponse<Organisation>>(`/organisation?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
-  findOne: (id: string): Promise<Organisation> => request<Organisation>(`/organisation/${id}`),
-  create: (data: Partial<Organisation>): Promise<Organisation> =>
-    request<Organisation>('/organisation', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: Partial<Organisation>): Promise<Organisation> =>
-    request<Organisation>(`/organisation/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  remove: (id: string): Promise<void> => request<void>(`/organisation/${id}`, { method: 'DELETE' }),
-  listUsers: (id: string, limit: number = 10, cursor?: string): Promise<PaginatedResponse<User>> =>
-    request<PaginatedResponse<User>>(`/organisation/${id}/user?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
-  addUser: (id: string, userId: string): Promise<void> =>
-    request<void>(`/organisation/${id}/user/${userId}`, { method: 'POST' }),
-  removeUser: (id: string, userId: string): Promise<void> =>
-    request<void>(`/organisation/${id}/user/${userId}`, { method: 'DELETE' }),
-  listTeams: (id: string, limit: number = 10, cursor?: string): Promise<PaginatedResponse<Team>> =>
-    request<PaginatedResponse<Team>>(`/organisation/${id}/team?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
-  addTeam: (id: string, teamId: string): Promise<void> =>
-    request<void>(`/organisation/${id}/team/${teamId}`, { method: 'POST' }),
-  removeTeam: (id: string, teamId: string): Promise<void> =>
-    request<void>(`/organisation/${id}/team/${teamId}`, { method: 'DELETE' }),
-};
 
 export const userService = {
   findAll: (limit: number = 10, cursor?: string): Promise<PaginatedResponse<User>> =>

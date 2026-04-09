@@ -9,11 +9,6 @@ export interface PaginatedResponse<T> {
   pagination: Pagination;
 }
 
-export interface Organisation {
-  id: string;
-  name?: string;
-}
-
 export interface Team {
   name: string;
   description?: string;

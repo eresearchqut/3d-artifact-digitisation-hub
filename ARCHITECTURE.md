@@ -6,11 +6,24 @@ A platform that enables the management of 3d digital assets. 100% open source.
 
 ## Model
 
-- **Organisation** → top-level container; can have many **Assets**, **Users**, and **Teams**. Organisations are stored in Cognito and are associated with a Cognito User Pool Client. 
-- **Asset** → Represent a 3d asset, must belong to an **Organisation** and can have many **Shares**. Assets are stored in S3. Asset metadata is stored in DynamoDB. Assets are uploaded using presigned URLs
-- **Team** → belongs to an Organisation; can have many **Users** and **Assets**. Teams are stored in Cognito and are associated with a Cognito User Pool Groups.
-- **User** → belongs to an Organisation (and optionally Teams); can own **Sites**. Users are stored in 
-- **Share** → represents a viewable website housing one or more assets.
+- **Asset** → Represents a 3D asset:
+  - Assets are uploaded into S3 using presigned URLs
+  - Raw uploads are stored at `assets/{asset_id}`
+  - A metadata record is stored in DynamoDB capturing the original file metadata and the user who uploaded the asset (`packages/asset-upload-listener`)
+  - An asset viewer is generated and stored in S3 under `viewer/{asset_id}` (`packages/asset-splat-transform`)
+  - **Ownership** is managed through a dedicated Cognito group:
+    - When an asset is created, a Cognito group is created with the asset ID as the group name
+    - The uploading user is the initial owner and is added to that group
+    - Additional users and teams can be added to the group to grant access
+    - When an asset is deleted, its Cognito group, raw upload, and viewer files are all removed
+- **User** → Represents a user of the platform:
+  - Users are managed in Cognito
+  - Users can be members of teams
+  - Users can be granted access to assets via asset ownership groups
+- **Team** → Represents a group of users:
+  - Teams are backed by a Cognito group (group name = team ID)
+  - Teams can be granted access to assets via asset ownership groups
+
 
 ## Packaging
 
@@ -46,10 +59,10 @@ a docker compose file to represent the s3 bucket and dynamodb tables (localstack
 
 Each resource is implemented using a singular naming convention and a simplified model-driven architecture:
 
-- **Controller**: Handles incoming requests and defines API routes (e.g., `organisation.controller.ts`).
-- **Service**: Contains the business logic for the resource (e.g., `organisation.service.ts`).
-- **Model**: A single class used for both data transfer (DTO) and internal representation (e.g., `organisation.model.ts`).
-- **Module**: Orchestrates the dependency injection for the resource (e.g., `organisation.module.ts`).
+- **Controller**: Handles incoming requests and defines API routes (e.g., `asset.controller.ts`).
+- **Service**: Contains the business logic for the resource (e.g., `asset.service.ts`).
+- **Model**: A single class used for both data transfer (DTO) and internal representation (e.g., `asset.model.ts`).
+- **Module**: Orchestrates the dependency injection for the resource (e.g., `asset.module.ts`).
 - **Unit Tests**: Comprehensive test suites for both controllers and services (e.g., `*.spec.ts`).
 
 #### Data Handling

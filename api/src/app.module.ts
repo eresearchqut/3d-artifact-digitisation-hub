@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { OrganisationModule } from './organisation/organisation.module';
 import { TeamModule } from './team/team.module';
 import { UserModule } from './user/user.module';
 import { AssetModule } from './asset/asset.module';
@@ -14,7 +13,6 @@ import { AppConfigModule } from './config/config.module';
       envFilePath: ['.env.local', '.env'],
     }),
     ClientModule,
-    OrganisationModule,
     TeamModule,
     UserModule,
     AssetModule,
