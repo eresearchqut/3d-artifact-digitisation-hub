@@ -10,6 +10,8 @@ interface Asset {
   id: string;
   key: string;
   bucket?: string;
+  uploadedAt?: string;
+  uploadedBy?: string;
   metadata?: Record<string, string>;
 }
 
@@ -131,6 +133,11 @@ export const AssetListPage: React.FC = () => {
       key: 'lastmodified',
       header: 'Last Modified',
       render: (asset) => <span>{formatLastModified(asset.metadata?.lastmodified)}</span>,
+    },
+    {
+      key: 'uploadedBy',
+      header: 'Uploaded By',
+      render: (asset) => <span>{asset.uploadedBy ?? '—'}</span>,
     },
     {
       key: 'actions',

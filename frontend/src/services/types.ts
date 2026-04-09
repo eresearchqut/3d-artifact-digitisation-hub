@@ -22,4 +22,6 @@ export interface User {
 export interface Asset {
   id: string;
   key: string;
+  uploadedAt?: string;
+  uploadedBy?: string;
 }
