@@ -48,14 +48,16 @@ describe('computeViewerSettings', () => {
         );
         expect(separation).toBeGreaterThan(0.01);
 
-        // Target should equal the AABB centre (the exact formula the frame button uses)
+        // Target should equal the world-space AABB centre.
+        // The viewer applies entity.setLocalEulerAngles(0, 0, 180) — a 180° Z rotation
+        // that maps PLY space → world space as: x_world = -x_ply, y_world = -y_ply, z_world = z_ply
         const summary = computeSummary(dataTable);
         const xs = summary.columns['x'];
         const ys = summary.columns['y'];
         const zs = summary.columns['z'];
         const expectedTarget = [
-            (xs.min + xs.max) / 2,
-            (ys.min + ys.max) / 2,
+            -((xs.min + xs.max) / 2),
+            -((ys.min + ys.max) / 2),
             (zs.min + zs.max) / 2,
         ];
         for (let i = 0; i < 3; i++) {

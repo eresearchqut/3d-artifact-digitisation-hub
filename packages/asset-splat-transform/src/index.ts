@@ -200,15 +200,19 @@ export async function processAssetToViewer(
  * Compute SuperSplat viewer camera settings that emulate the viewer's "frame"
  * button (id="frame").
  *
- * The frame button calls camera.focus() which uses:
- *   - focalPoint  = worldBound.center  (AABB centre of splat positions)
- *   - sceneRadius = bound.halfExtents.length()  (AABB half-diagonal)
- *   - distance    = sceneRadius / fovFactor
- *   - fovFactor   = sin(fov × π/360)  where fov = 75°
+ * The embedded viewer applies `entity.setLocalEulerAngles(0, 0, 180)` to the
+ * gsplat entity — a 180° Z rotation that maps PLY space → world space as:
+ *   x_world = -x_ply,  y_world = -y_ply,  z_world = z_ply
  *
- * The v1 settings schema requires both `camera` AND `background` fields —
- * the viewer's validateV1() calls assertObject() on both unconditionally. A
- * missing `background` causes a silent validation error and a blank screen.
+ * The frame button then calls createFrameCamera(sceneBound, fov):
+ *   distance = halfExtents.length() / sin(fov × π/360)
+ *   position = normalize(2, 1, 2) × distance + sceneBound.center   (world space)
+ *   target   = sceneBound.center                                     (world space)
+ *
+ * All camera values in settings.json must be in world space.
+ *
+ * The v1 schema also requires the `background` field — omitting it causes a
+ * silent assertObject() failure and a blank screen.
  */
 export function computeViewerSettings(dataTable: DataTable): Record<string, unknown> | undefined {
     const summary = computeSummary(dataTable);
@@ -218,14 +222,15 @@ export function computeViewerSettings(dataTable: DataTable): Record<string, unkn
 
     if (!xs || !ys || !zs) return undefined;
 
-    // AABB centre — mirrors worldBound.center used by the frame button.
-    const cx = (xs.min + xs.max) / 2;
-    const cy = (ys.min + ys.max) / 2;
+    // AABB centre in PLY local space → convert to world space via 180° Z rotation
+    // (x_world = -x_ply, y_world = -y_ply, z_world = z_ply)
+    const cx = -((xs.min + xs.max) / 2);
+    const cy = -((ys.min + ys.max) / 2);
     const cz = (zs.min + zs.max) / 2;
 
     if (!isFinite(cx) || !isFinite(cy) || !isFinite(cz)) return undefined;
 
-    // Scene radius = AABB half-diagonal, matching bound.halfExtents.length().
+    // Half-extents are rotation-invariant (180° flip preserves lengths)
     const hx = (xs.max - xs.min) / 2;
     const hy = (ys.max - ys.min) / 2;
     const hz = (zs.max - zs.min) / 2;
@@ -233,14 +238,18 @@ export function computeViewerSettings(dataTable: DataTable): Record<string, unkn
 
     if (!isFinite(sceneRadius) || sceneRadius <= 0) return undefined;
 
-    // Camera distance replicates: distance = sceneRadius / fovFactor
-    //   fovFactor = sin(fov * DEG_TO_RAD * 0.5)  (SuperSplat camera.ts)
+    // Frame formula: distance = sceneRadius / sin(fov × π/360)
     const FOV_DEG = 75;
     const fovFactor = Math.sin(FOV_DEG * (Math.PI / 180) * 0.5);
     const cameraDistance = sceneRadius / fovFactor;
 
-    // Place the camera in front of the scene centre, slightly above.
-    const position: [number, number, number] = [cx, cy + hy * 0.3, cz + cameraDistance];
+    // Frame camera direction: normalize(2, 1, 2) = (2/3, 1/3, 2/3)
+    const INV3 = 1 / 3;
+    const position: [number, number, number] = [
+        cx + 2 * INV3 * cameraDistance,
+        cy + 1 * INV3 * cameraDistance,
+        cz + 2 * INV3 * cameraDistance,
+    ];
     const target: [number, number, number] = [cx, cy, cz];
 
     logger.info('Computed viewer framing', {
