@@ -197,14 +197,20 @@ export async function processAssetToViewer(
 }
 
 /**
- * Compute SuperSplat viewer camera settings that frame the scene tightly.
+ * Compute SuperSplat viewer camera settings that emulate the viewer's "frame"
+ * button (id="frame").
  *
- * Uses the bounding box of the Gaussian positions to place the camera at a
- * distance that fits the bounding sphere inside a 60° FOV with 20% padding,
- * aimed at the scene centroid. This avoids the default "zoomed-out" view when
- * the scene is small relative to the viewer's default camera distance.
+ * The frame button calls camera.focus() which uses:
+ *   - focalPoint  = worldBound.center  (AABB centre of splat positions)
+ *   - sceneRadius = bound.halfExtents.length()  (AABB half-diagonal)
+ *   - distance    = sceneRadius / fovFactor
+ *   - fovFactor   = sin(fov × π/360)  where fov = 75°
+ *
+ * The v1 settings schema requires both `camera` AND `background` fields —
+ * the viewer's validateV1() calls assertObject() on both unconditionally. A
+ * missing `background` causes a silent validation error and a blank screen.
  */
-function computeViewerSettings(dataTable: DataTable): Record<string, unknown> | undefined {
+export function computeViewerSettings(dataTable: DataTable): Record<string, unknown> | undefined {
     const summary = computeSummary(dataTable);
     const xs = summary.columns['x'];
     const ys = summary.columns['y'];
@@ -212,36 +218,43 @@ function computeViewerSettings(dataTable: DataTable): Record<string, unknown> | 
 
     if (!xs || !ys || !zs) return undefined;
 
-    // Centroid from bounding-box midpoint — more stable than mean for scenes
-    // with asymmetric Gaussian distributions.
+    // AABB centre — mirrors worldBound.center used by the frame button.
     const cx = (xs.min + xs.max) / 2;
     const cy = (ys.min + ys.max) / 2;
     const cz = (zs.min + zs.max) / 2;
 
-    const radius = Math.sqrt(
-        ((xs.max - xs.min) / 2) ** 2 +
-        ((ys.max - ys.min) / 2) ** 2 +
-        ((zs.max - zs.min) / 2) ** 2,
-    );
+    if (!isFinite(cx) || !isFinite(cy) || !isFinite(cz)) return undefined;
 
-    if (radius <= 0) return undefined;
+    // Scene radius = AABB half-diagonal, matching bound.halfExtents.length().
+    const hx = (xs.max - xs.min) / 2;
+    const hy = (ys.max - ys.min) / 2;
+    const hz = (zs.max - zs.min) / 2;
+    const sceneRadius = Math.sqrt(hx * hx + hy * hy + hz * hz);
 
-    // For a 60° vertical FOV (SuperSplat default), half-angle = 30°.
-    // distance = radius / tan(30°), multiplied by 1.2 for comfortable padding.
-    const distance = (radius / Math.tan(Math.PI / 6)) * 1.2;
+    if (!isFinite(sceneRadius) || sceneRadius <= 0) return undefined;
+
+    // Camera distance replicates: distance = sceneRadius / fovFactor
+    //   fovFactor = sin(fov * DEG_TO_RAD * 0.5)  (SuperSplat camera.ts)
+    const FOV_DEG = 75;
+    const fovFactor = Math.sin(FOV_DEG * (Math.PI / 180) * 0.5);
+    const cameraDistance = sceneRadius / fovFactor;
+
+    // Place the camera in front of the scene centre, slightly above.
+    const position: [number, number, number] = [cx, cy + hy * 0.3, cz + cameraDistance];
+    const target: [number, number, number] = [cx, cy, cz];
 
     logger.info('Computed viewer framing', {
-        centroid: [cx, cy, cz],
-        radius: Math.round(radius * 1000) / 1000,
-        cameraDistance: Math.round(distance * 1000) / 1000,
+        centroid: target.map(v => Math.round(v * 1000) / 1000),
+        sceneRadius: Math.round(sceneRadius * 1000) / 1000,
+        cameraDistance: Math.round(cameraDistance * 1000) / 1000,
     });
 
+    // background is required by the v1 schema validator — omitting it causes
+    // a silent assertObject() failure and a blank viewer.
     return {
-        camera: {
-            // Offset slightly above (+Y) and directly in front (+Z) of centroid.
-            position: [cx, cy + radius * 0.25, cz + distance],
-            target: [cx, cy, cz],
-        },
+        background: { color: [0, 0, 0] },
+        camera: { position, target },
+        animTracks: [],
     };
 }
 

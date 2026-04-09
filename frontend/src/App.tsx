@@ -99,7 +99,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Authenticator services={services}>
+      <Authenticator hideSignUp services={services}>
         {({ signOut, user }) => (
           <Layout onSignOut={signOut}>
             <Routes>

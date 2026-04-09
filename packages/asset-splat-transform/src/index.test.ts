@@ -1,4 +1,4 @@
-import { S3Client, CreateBucketCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, CreateBucketCommand, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 import { LocalstackContainer, StartedLocalStackContainer } from '@testcontainers/localstack';
 import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import * as crypto from 'crypto';
@@ -100,8 +100,33 @@ describe('asset-splat-transform integration test', () => {
 
         const uploadedKeys = listResponse.Contents?.map(c => c.Key) || [];
         
-        // At least index.html should be created and uploaded
+        // At least index.html and settings.json should be created and uploaded
         expect(uploadedKeys.length).toBeGreaterThan(3);
         expect(uploadedKeys.some(k => k?.endsWith('index.html'))).toBe(true);
+        expect(uploadedKeys.some(k => k?.endsWith('settings.json'))).toBe(true);
+
+        // Verify settings.json contains valid framing data
+        const settingsKey = uploadedKeys.find(k => k?.endsWith('settings.json'))!;
+        const settingsObj = await s3Client.send(new GetObjectCommand({ Bucket: bucketName, Key: settingsKey }));
+        const settingsText = await settingsObj.Body?.transformToString();
+        const settings = JSON.parse(settingsText!);
+
+        expect(settings).toHaveProperty('camera');
+        expect(settings).toHaveProperty('background');
+        expect(Array.isArray(settings.camera.position)).toBe(true);
+        expect(Array.isArray(settings.camera.target)).toBe(true);
+        expect(settings.camera.position).toHaveLength(3);
+        expect(settings.camera.target).toHaveLength(3);
+
+        // All values must be finite
+        for (const v of [...settings.camera.position, ...settings.camera.target]) {
+            expect(isFinite(v)).toBe(true);
+        }
+
+        // Camera must not be coincident with target (degenerate view matrix)
+        const [px, py, pz] = settings.camera.position;
+        const [tx, ty, tz] = settings.camera.target;
+        const separation = Math.sqrt((px-tx)**2 + (py-ty)**2 + (pz-tz)**2);
+        expect(separation).toBeGreaterThan(0);
     }, 120000);
 });
