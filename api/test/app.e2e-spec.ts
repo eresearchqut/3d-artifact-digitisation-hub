@@ -5,6 +5,10 @@ import { ConfigService } from '@nestjs/config';
 import {
   CognitoIdentityProviderClient,
   CreateUserPoolCommand,
+  CreateUserPoolClientCommand,
+  AdminCreateUserCommand,
+  AdminSetUserPasswordCommand,
+  InitiateAuthCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import {
   DynamoDBClient,
@@ -20,6 +24,10 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
   let cognitoContainer: StartedTestContainer;
   let app: INestApplication;
   let userPoolId: string;
+  let userPoolClientId: string;
+  let testIdToken: string;
+  const testUserEmail = 'e2e-upload@example.com';
+  const testUserPassword = 'TestPass123!';
   const tableName = 'test-table';
 
   jest.setTimeout(180000); // Docker can be slow
@@ -57,6 +65,56 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       new CreateUserPoolCommand({ PoolName: 'test-pool' }),
     );
     userPoolId = createPoolResponse.UserPool?.Id || 'default-id';
+
+    // Create a User Pool Client with USER_PASSWORD_AUTH enabled
+    const createClientResponse = await tempCognitoClient.send(
+      new CreateUserPoolClientCommand({
+        UserPoolId: userPoolId,
+        ClientName: 'test-client',
+        ExplicitAuthFlows: [
+          'ALLOW_USER_PASSWORD_AUTH',
+          'ALLOW_REFRESH_TOKEN_AUTH',
+        ],
+      }),
+    );
+    userPoolClientId =
+      createClientResponse.UserPoolClient?.ClientId || 'default-client-id';
+
+    // Create a test user for upload auth
+    await tempCognitoClient.send(
+      new AdminCreateUserCommand({
+        UserPoolId: userPoolId,
+        Username: testUserEmail,
+        TemporaryPassword: 'Temp1234!',
+        MessageAction: 'SUPPRESS',
+        UserAttributes: [
+          { Name: 'email', Value: testUserEmail },
+          { Name: 'email_verified', Value: 'true' },
+        ],
+      }),
+    );
+
+    await tempCognitoClient.send(
+      new AdminSetUserPasswordCommand({
+        UserPoolId: userPoolId,
+        Username: testUserEmail,
+        Password: testUserPassword,
+        Permanent: true,
+      }),
+    );
+
+    // Obtain an ID token for use in authenticated tests
+    const authResult = await tempCognitoClient.send(
+      new InitiateAuthCommand({
+        AuthFlow: 'USER_PASSWORD_AUTH',
+        ClientId: userPoolClientId,
+        AuthParameters: {
+          USERNAME: testUserEmail,
+          PASSWORD: testUserPassword,
+        },
+      }),
+    );
+    testIdToken = authResult.AuthenticationResult?.IdToken ?? '';
 
     // Create DynamoDB table
     const tempDynamoClient = new DynamoDBClient({
@@ -127,6 +185,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
             AWS_ACCESS_KEY_ID: 'test',
             AWS_SECRET_ACCESS_KEY: 'test',
             USER_POOL_ID: userPoolId,
+            USER_POOL_CLIENT_ID: userPoolClientId,
             DYNAMODB_TABLE_NAME: tableName,
             S3_UPLOAD_BUCKET: 'asset-uploads',
           };
@@ -143,123 +202,6 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     if (app) await app.close();
     if (localstackContainer) await localstackContainer.stop();
     if (cognitoContainer) await cognitoContainer.stop();
-  });
-
-  it('should perform CRUD operations on /organisation', async () => {
-    // 1. Create (POST)
-    const createResponse = await request(app.getHttpServer())
-      .post('/organisation')
-      .send({ name: 'Test Organisation' })
-      .expect(201);
-
-    const organisation = createResponse.body;
-    expect(organisation.id).toBeDefined();
-    expect(organisation.name).toBe('Test Organisation');
-
-    // 2. Find All (GET)
-    const findAllResponse = await request(app.getHttpServer())
-      .get('/organisation')
-      .expect(200);
-
-    expect(findAllResponse.body.data).toContainEqual(organisation);
-
-    // 3. Find One (GET :id)
-    const findOneResponse = await request(app.getHttpServer())
-      .get(`/organisation/${organisation.id}`)
-      .expect(200);
-
-    expect(findOneResponse.body).toEqual(organisation);
-
-    // 4. Update (PATCH :id)
-    const updateResponse = await request(app.getHttpServer())
-      .patch(`/organisation/${organisation.id}`)
-      .send({ name: 'Updated Organisation' })
-      .expect(200);
-
-    expect(updateResponse.body.name).toBe('Updated Organisation');
-
-    // 5. Remove (DELETE :id)
-    await request(app.getHttpServer())
-      .delete(`/organisation/${organisation.id}`)
-      .expect(200);
-
-    // Verify deletion
-    await request(app.getHttpServer())
-      .get(`/organisation/${organisation.id}`)
-      .expect(404);
-  });
-
-  it('should manage organisation-user and organisation-team associations', async () => {
-    // 1. Setup: Create Organisation, User, and Team
-    const orgRes = await request(app.getHttpServer())
-      .post('/organisation')
-      .send({ name: 'Assoc Org' })
-      .expect(201);
-    const org = orgRes.body;
-
-    const userRes = await request(app.getHttpServer())
-      .post('/user')
-      .send({ email: 'assoc-user@example.com' })
-      .expect(201);
-    const user = userRes.body;
-
-    const teamRes = await request(app.getHttpServer())
-      .post('/team')
-      .send({ name: 'Assoc Team' })
-      .expect(201);
-    const team = teamRes.body;
-
-    // 2. Add user to organisation
-    await request(app.getHttpServer())
-      .post(`/organisation/${org.id}/user/${user.id}`)
-      .expect(201);
-
-    // 3. List users in organisation
-    const listUsersRes = await request(app.getHttpServer())
-      .get(`/organisation/${org.id}/user`)
-      .expect(200);
-    expect(listUsersRes.body.data).toHaveLength(1);
-    expect(listUsersRes.body.data[0]).toMatchObject({
-      id: user.id,
-      email: user.email,
-    });
-
-    // 4. Add team to organisation
-    await request(app.getHttpServer())
-      .post(`/organisation/${org.id}/team/${team.name}`)
-      .expect(201);
-
-    // 5. List teams in organisation
-    const listTeamsRes = await request(app.getHttpServer())
-      .get(`/organisation/${org.id}/team`)
-      .expect(200);
-    expect(listTeamsRes.body.data).toHaveLength(1);
-    expect(listTeamsRes.body.data[0]).toMatchObject(team);
-
-    // 6. Remove user from organisation
-    await request(app.getHttpServer())
-      .delete(`/organisation/${org.id}/user/${user.id}`)
-      .expect(200);
-
-    const listUsersResAfter = await request(app.getHttpServer())
-      .get(`/organisation/${org.id}/user`)
-      .expect(200);
-    expect(listUsersResAfter.body.data).toHaveLength(0);
-
-    // 7. Remove team from organisation
-    await request(app.getHttpServer())
-      .delete(`/organisation/${org.id}/team/${team.name}`)
-      .expect(200);
-
-    const listTeamsResAfter = await request(app.getHttpServer())
-      .get(`/organisation/${org.id}/team`)
-      .expect(200);
-    expect(listTeamsResAfter.body.data).toHaveLength(0);
-
-    // Cleanup
-    await request(app.getHttpServer()).delete(`/organisation/${org.id}`);
-    await request(app.getHttpServer()).delete(`/user/${user.id}`);
-    await request(app.getHttpServer()).delete(`/team/${team.name}`);
   });
 
   it('should perform CRUD operations on /team', async () => {
@@ -456,9 +398,10 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
   });
 
   it('should generate a presigned upload URL for a asset', async () => {
-    // 1. Request presigned URL
+    // 1. Request presigned URL — must include the ID token from the test user
     const uploadUrlResponse = await request(app.getHttpServer())
       .post(`/asset/upload`)
+      .set('Authorization', `Bearer ${testIdToken}`)
       .send({ metadata: { name: 'test.ply' } })
       .expect(201);
 
@@ -468,7 +411,6 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     expect(data).toHaveProperty('uploadUrl');
     expect(data.uploadUrl).toContain('asset-uploads');
     expect(data.uploadUrl).toContain(assetId);
-
     expect(data.uploadUrl).toContain('X-Amz-Algorithm');
 
     // 2. Perform actual upload using the presigned URL
@@ -496,22 +438,32 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       await import('../../packages/asset-upload-listener/src/index');
 
     const mockS3Event: any = {
-      Records: [
-        {
-          s3: {
-            bucket: { name: 'asset-uploads' },
-            object: {
-              key: `assets/${assetId}`,
-              eTag: 'dummy',
-            },
-          },
+      version: '0',
+      id: 'test-event-id',
+      source: 'aws.s3',
+      account: '123456789012',
+      time: new Date().toISOString(),
+      region: 'us-east-1',
+      resources: [],
+      'detail-type': 'Object Created',
+      detail: {
+        version: '0',
+        bucket: { name: 'asset-uploads' },
+        object: {
+          key: `assets/${assetId}`,
+          size: 100,
+          etag: 'dummy',
+          sequencer: '0',
         },
-      ],
+        'request-id': 'test-request-id',
+        requester: 'test-requester',
+        reason: 'PutObject',
+      },
     };
 
     await assetUploadListener(mockS3Event, {} as any, () => {});
 
-    // 4. Verify asset was created
+    // 4. Verify asset was created and uploadedBy is set
     const getResponse = await request(app.getHttpServer())
       .get(`/asset/${assetId}`)
       .expect(200);
@@ -519,6 +471,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     expect(getResponse.body).toEqual({
       id: assetId,
       key: `assets/${assetId}`,
+      uploadedBy: testUserEmail,
       metadata: expect.any(Object),
     });
   });

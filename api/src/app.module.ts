@@ -5,6 +5,7 @@ import { UserModule } from './user/user.module';
 import { AssetModule } from './asset/asset.module';
 import { ClientModule } from './client/client.module';
 import { AppConfigModule } from './config/config.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AppConfigModule } from './config/config.module';
     UserModule,
     AssetModule,
     AppConfigModule,
+    AuthModule,
   ],
   controllers: [],
   providers: [],

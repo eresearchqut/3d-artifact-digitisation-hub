@@ -80,6 +80,7 @@ export class AssetService {
       return {
         id: unmarshalled.PK.replace('ASSET#', ''),
         key: unmarshalled.key || '',
+        ...(unmarshalled.uploadedBy && { uploadedBy: unmarshalled.uploadedBy }),
         ...(unmarshalled.metadata && { metadata: unmarshalled.metadata }),
       };
     });
@@ -117,6 +118,7 @@ export class AssetService {
     return {
       id: unmarshalled.PK.replace('ASSET#', ''),
       key: unmarshalled.key || '',
+      ...(unmarshalled.uploadedBy && { uploadedBy: unmarshalled.uploadedBy }),
       ...(unmarshalled.metadata && { metadata: unmarshalled.metadata }),
     };
   }
@@ -181,6 +183,7 @@ export class AssetService {
   }
 
   async generateUploadUrl(
+    uploadedBy: string,
     metadata?: Record<string, string>,
   ): Promise<{ uploadUrl: string; id: string }> {
     const id = randomUUID();
@@ -207,6 +210,7 @@ export class AssetService {
       key: `assets/${id}`,
       name: metadata?.name || id,
       uploadedAt: new Date().toISOString(),
+      uploadedBy,
       status: 'pending',
       ...(metadata && Object.keys(metadata).length > 0 && { metadata }),
     };

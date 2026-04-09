@@ -68,8 +68,11 @@ describe('AssetController', () => {
         .spyOn(service, 'generateUploadUrl')
         .mockResolvedValue({ uploadUrl: 'http://test.com', id: '1' });
 
+      const mockReq = { user: { username: 'test@example.com' } } as any;
       expect(
-        await controller.generateUploadUrl({ metadata: { name: 'test.ply' } }),
+        await controller.generateUploadUrl(mockReq, {
+          metadata: { name: 'test.ply' },
+        }),
       ).toEqual({ uploadUrl: 'http://test.com', id: '1' });
     });
   });

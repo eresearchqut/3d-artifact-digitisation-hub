@@ -7,8 +7,10 @@ import {
   Param,
   Delete,
   Query,
+  Req,
   Res,
   StreamableFile,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,13 +18,17 @@ import {
   ApiResponse,
   ApiQuery,
   ApiParam,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { AssetService } from './asset.service';
 import { Asset } from './asset.model';
 import {
   ApiPaginatedResponse,
   PaginatedResponse,
 } from '../utils/pagination.model';
+import { AuthGuard } from '../auth/auth.guard';
+import { JwtPayload } from '../auth/auth.constants';
 @ApiTags('asset')
 @Controller('asset')
 export class AssetController {
@@ -57,6 +63,8 @@ export class AssetController {
   }
 
   @Post('upload')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get presigned upload URL for asset' })
   @ApiQuery({
     name: 'extension',
@@ -66,8 +74,14 @@ export class AssetController {
   })
   @ApiResponse({ status: 200, description: 'Presigned URL generated' })
   @ApiResponse({ status: 404, description: 'Asset not found' })
-  generateUploadUrl(@Body() body?: { metadata?: Record<string, string> }) {
-    return this.assetService.generateUploadUrl(body?.metadata);
+  generateUploadUrl(
+    @Req() req: Request & { user: JwtPayload },
+    @Body() body?: { metadata?: Record<string, string> },
+  ) {
+    return this.assetService.generateUploadUrl(
+      req.user.username,
+      body?.metadata,
+    );
   }
 
   @Get(':id/viewer/:file')

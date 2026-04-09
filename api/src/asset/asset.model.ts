@@ -6,5 +6,7 @@ export class Asset {
   @ApiProperty()
   key: string;
   @ApiProperty({ required: false })
+  uploadedBy?: string;
+  @ApiProperty({ required: false })
   metadata?: Record<string, string>;
 }
