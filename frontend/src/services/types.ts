@@ -25,3 +25,24 @@ export interface Asset {
   uploadedAt?: string;
   uploadedBy?: string;
 }
+
+export interface AssetAccess {
+  id: string;
+  type: 'user' | 'team';
+  grantedAt?: string;
+}
+
+export interface Share {
+  id: string;
+  assetId: string;
+  createdAt: string;
+  createdBy?: string;
+  duration?: string;
+  expiresAt?: string;
+}
+
+export interface ShareAccess {
+  id: string;
+  type: 'user' | 'team';
+  grantedAt?: string;
+}

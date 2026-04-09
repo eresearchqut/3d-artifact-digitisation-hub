@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TeamModule } from './team/team.module';
 import { UserModule } from './user/user.module';
 import { AssetModule } from './asset/asset.module';
+import { ShareModule } from './share/share.module';
 import { ClientModule } from './client/client.module';
 import { AppConfigModule } from './config/config.module';
 import { AuthModule } from './auth/auth.module';
@@ -17,6 +18,7 @@ import { AuthModule } from './auth/auth.module';
     TeamModule,
     UserModule,
     AssetModule,
+    ShareModule,
     AppConfigModule,
     AuthModule,
   ],

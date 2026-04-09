@@ -11,6 +11,7 @@ import {
   Res,
   StreamableFile,
   UseGuards,
+  HttpCode,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,6 +24,7 @@ import {
 import { Request } from 'express';
 import { AssetService } from './asset.service';
 import { Asset } from './asset.model';
+import { AssetAccess } from './asset-access.model';
 import {
   ApiPaginatedResponse,
   PaginatedResponse,
@@ -114,5 +116,85 @@ export class AssetController {
     }
     res.set({ 'Content-Type': result.contentType });
     return result.file;
+  }
+
+  // ─── User access ─────────────────────────────────────────────────────────
+
+  @Get(':id/user')
+  @ApiOperation({ summary: 'List users with access to an asset' })
+  @ApiPaginatedResponse(AssetAccess)
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'cursor', required: false, type: String })
+  listUserAccess(
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ): Promise<PaginatedResponse<AssetAccess>> {
+    return this.assetService.listUserAccess(
+      id,
+      limit ? parseInt(limit, 10) : 100,
+      cursor,
+    );
+  }
+
+  @Post(':id/user/:email')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Grant a user access to an asset' })
+  @ApiResponse({ status: 201, description: 'Access granted' })
+  addUserAccess(
+    @Param('id') id: string,
+    @Param('email') email: string,
+  ): Promise<void> {
+    return this.assetService.addUserAccess(id, email);
+  }
+
+  @Delete(':id/user/:email')
+  @ApiOperation({ summary: "Revoke a user's access to an asset" })
+  @ApiResponse({ status: 200, description: 'Access revoked' })
+  removeUserAccess(
+    @Param('id') id: string,
+    @Param('email') email: string,
+  ): Promise<void> {
+    return this.assetService.removeUserAccess(id, email);
+  }
+
+  // ─── Team access ─────────────────────────────────────────────────────────
+
+  @Get(':id/team')
+  @ApiOperation({ summary: 'List teams with access to an asset' })
+  @ApiPaginatedResponse(AssetAccess)
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'cursor', required: false, type: String })
+  listTeamAccess(
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ): Promise<PaginatedResponse<AssetAccess>> {
+    return this.assetService.listTeamAccess(
+      id,
+      limit ? parseInt(limit, 10) : 100,
+      cursor,
+    );
+  }
+
+  @Post(':id/team/:teamName')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Grant a team access to an asset' })
+  @ApiResponse({ status: 201, description: 'Access granted' })
+  addTeamAccess(
+    @Param('id') id: string,
+    @Param('teamName') teamName: string,
+  ): Promise<void> {
+    return this.assetService.addTeamAccess(id, teamName);
+  }
+
+  @Delete(':id/team/:teamName')
+  @ApiOperation({ summary: "Revoke a team's access to an asset" })
+  @ApiResponse({ status: 200, description: 'Access revoked' })
+  removeTeamAccess(
+    @Param('id') id: string,
+    @Param('teamName') teamName: string,
+  ): Promise<void> {
+    return this.assetService.removeTeamAccess(id, teamName);
   }
 }

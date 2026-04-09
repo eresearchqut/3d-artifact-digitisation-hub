@@ -8,5 +8,6 @@ import { ClientModule } from '../client/client.module';
   imports: [ConfigModule, ClientModule],
   controllers: [AssetController],
   providers: [AssetService],
+  exports: [AssetService],
 })
 export class AssetModule {}

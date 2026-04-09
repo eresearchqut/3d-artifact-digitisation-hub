@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { assetService, getBaseUrl } from '../services/api.service';
-import { Plus, Trash2, Globe } from 'lucide-react';
+import { Plus, Trash2, Globe, Settings } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Text } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
@@ -34,6 +35,7 @@ function formatLastModified(ts: string | undefined): string {
 
 export const AssetListPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -146,6 +148,10 @@ export const AssetListPage: React.FC = () => {
       cellClassName: 'text-right',
       render: (asset) => (
         <HStack justify="flex-end">
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/asset/${asset.id}`)}>
+            <Settings />
+            Manage
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setViewerAsset(asset)}>
             <Globe />
             View

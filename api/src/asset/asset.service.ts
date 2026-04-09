@@ -13,6 +13,8 @@ import {
   DeleteItemCommand,
   PutItemCommand,
   ScanCommand,
+  QueryCommand,
+  BatchWriteItemCommand,
 } from '@aws-sdk/client-dynamodb';
 import {
   S3Client,
@@ -25,6 +27,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { Asset } from './asset.model';
+import { AssetAccess } from './asset-access.model';
 import { PaginatedResponse } from '../utils/pagination.model';
 
 const VIEWER_FILES: Record<string, string> = {
@@ -135,19 +138,82 @@ export class AssetService {
     const bucketName =
       this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
 
-    // Delete raw upload and all viewer files concurrently
+    // Collect all DynamoDB items for this asset (main record + ownership + shares)
+    await this.deleteAllAssetItems(id);
+
     await Promise.all([
-      this.dynamoDBClient.send(
-        new DeleteItemCommand({
-          TableName: this.tableName,
-          Key: marshall({ PK: `ASSET#${id}`, SK: `ASSET#${id}` }),
-        }),
-      ),
       this.s3Client.send(
         new DeleteObjectCommand({ Bucket: bucketName, Key: `assets/${id}` }),
       ),
       this.deleteViewerFiles(bucketName, id),
     ]);
+  }
+
+  private async deleteAllAssetItems(assetId: string): Promise<void> {
+    let lastKey: Record<string, any> | undefined;
+    do {
+      const result = await this.dynamoDBClient.send(
+        new QueryCommand({
+          TableName: this.tableName,
+          KeyConditionExpression: 'PK = :pk',
+          ExpressionAttributeValues: marshall({ ':pk': `ASSET#${assetId}` }),
+          ExclusiveStartKey: lastKey,
+        }),
+      );
+
+      const items = result.Items ?? [];
+
+      // For each SHARE# item found, also delete the share's access records
+      const shareIds = items
+        .map((item) => unmarshall(item))
+        .filter((u) => u.SK?.startsWith('SHARE#'))
+        .map((u) => u.SK.replace('SHARE#', ''));
+
+      await Promise.all([
+        this.batchDeleteItems(items.map((item) => unmarshall(item))),
+        ...shareIds.map((shareId) => this.deleteShareAccessItems(shareId)),
+      ]);
+
+      lastKey = result.LastEvaluatedKey;
+    } while (lastKey);
+  }
+
+  async deleteShareAccessItems(shareId: string): Promise<void> {
+    let lastKey: Record<string, any> | undefined;
+    do {
+      const result = await this.dynamoDBClient.send(
+        new QueryCommand({
+          TableName: this.tableName,
+          KeyConditionExpression: 'PK = :pk',
+          ExpressionAttributeValues: marshall({ ':pk': `SHARE#${shareId}` }),
+          ExclusiveStartKey: lastKey,
+        }),
+      );
+      await this.batchDeleteItems(
+        (result.Items ?? []).map((i) => unmarshall(i)),
+      );
+      lastKey = result.LastEvaluatedKey;
+    } while (lastKey);
+  }
+
+  private async batchDeleteItems(
+    items: Array<Record<string, any>>,
+  ): Promise<void> {
+    // DynamoDB BatchWriteItem limit is 25 items per request
+    for (let i = 0; i < items.length; i += 25) {
+      const chunk = items.slice(i, i + 25);
+      await this.dynamoDBClient.send(
+        new BatchWriteItemCommand({
+          RequestItems: {
+            [this.tableName]: chunk.map(({ PK, SK }) => ({
+              DeleteRequest: {
+                Key: marshall({ PK, SK }),
+              },
+            })),
+          },
+        }),
+      );
+    }
   }
 
   private async deleteViewerFiles(
@@ -221,6 +287,18 @@ export class AssetService {
       }),
     );
 
+    // Write the uploader as the initial owner
+    await this.dynamoDBClient.send(
+      new PutItemCommand({
+        TableName: this.tableName,
+        Item: marshall({
+          PK: `ASSET#${id}`,
+          SK: `USER#${uploadedBy}`,
+          grantedAt: new Date().toISOString(),
+        }),
+      }),
+    );
+
     // Generate the presigned URL with only Content-Type signed — no metadata headers
     const command = new PutObjectCommand({
       Bucket: bucketName,
@@ -283,5 +361,113 @@ export class AssetService {
         `Viewer file '${filename}' not found for asset ${id}`,
       );
     }
+  }
+
+  // ─── Ownership management ────────────────────────────────────────────────
+
+  private async listAccessBySKPrefix(
+    assetId: string,
+    skPrefix: string,
+    limit: number,
+    cursor?: string,
+  ): Promise<PaginatedResponse<AssetAccess>> {
+    const result = await this.dynamoDBClient.send(
+      new QueryCommand({
+        TableName: this.tableName,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+        ExpressionAttributeValues: marshall({
+          ':pk': `ASSET#${assetId}`,
+          ':prefix': skPrefix,
+        }),
+        Limit: limit,
+        ExclusiveStartKey: cursor
+          ? JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8'))
+          : undefined,
+      }),
+    );
+
+    const data: AssetAccess[] = (result.Items ?? []).map((item) => {
+      const u = unmarshall(item);
+      return {
+        id: u.SK.replace(/^(USER|TEAM)#/, ''),
+        type: u.SK.startsWith('USER#') ? 'user' : 'team',
+        grantedAt: u.grantedAt,
+      };
+    });
+
+    const next_cursor = result.LastEvaluatedKey
+      ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64')
+      : null;
+
+    return {
+      data,
+      pagination: { limit, has_more: !!next_cursor, next_cursor },
+    };
+  }
+
+  async listUserAccess(
+    assetId: string,
+    limit = 100,
+    cursor?: string,
+  ): Promise<PaginatedResponse<AssetAccess>> {
+    await this.findOne(assetId);
+    return this.listAccessBySKPrefix(assetId, 'USER#', limit, cursor);
+  }
+
+  async addUserAccess(assetId: string, email: string): Promise<void> {
+    await this.findOne(assetId);
+    await this.dynamoDBClient.send(
+      new PutItemCommand({
+        TableName: this.tableName,
+        Item: marshall({
+          PK: `ASSET#${assetId}`,
+          SK: `USER#${email}`,
+          grantedAt: new Date().toISOString(),
+        }),
+      }),
+    );
+  }
+
+  async removeUserAccess(assetId: string, email: string): Promise<void> {
+    await this.findOne(assetId);
+    await this.dynamoDBClient.send(
+      new DeleteItemCommand({
+        TableName: this.tableName,
+        Key: marshall({ PK: `ASSET#${assetId}`, SK: `USER#${email}` }),
+      }),
+    );
+  }
+
+  async listTeamAccess(
+    assetId: string,
+    limit = 100,
+    cursor?: string,
+  ): Promise<PaginatedResponse<AssetAccess>> {
+    await this.findOne(assetId);
+    return this.listAccessBySKPrefix(assetId, 'TEAM#', limit, cursor);
+  }
+
+  async addTeamAccess(assetId: string, teamName: string): Promise<void> {
+    await this.findOne(assetId);
+    await this.dynamoDBClient.send(
+      new PutItemCommand({
+        TableName: this.tableName,
+        Item: marshall({
+          PK: `ASSET#${assetId}`,
+          SK: `TEAM#${teamName}`,
+          grantedAt: new Date().toISOString(),
+        }),
+      }),
+    );
+  }
+
+  async removeTeamAccess(assetId: string, teamName: string): Promise<void> {
+    await this.findOne(assetId);
+    await this.dynamoDBClient.send(
+      new DeleteItemCommand({
+        TableName: this.tableName,
+        Key: marshall({ PK: `ASSET#${assetId}`, SK: `TEAM#${teamName}` }),
+      }),
+    );
   }
 }

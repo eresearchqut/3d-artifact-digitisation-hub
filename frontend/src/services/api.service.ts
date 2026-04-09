@@ -1,4 +1,4 @@
-import { PaginatedResponse, Asset, Team, User } from './types';
+import { PaginatedResponse, Asset, AssetAccess, Share, ShareAccess, Team, User } from './types';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 // BASE_URL is set at startup by App.tsx once runtime-config.json is resolved.
@@ -87,4 +87,39 @@ export const assetService = {
   remove: (id: string): Promise<void> => request<void>(`/asset/${id}`, { method: 'DELETE' }),
   generateUploadUrl: (metadata?: Record<string, string>): Promise<{ uploadUrl: string, id: string }> =>
     request<{ uploadUrl: string, id: string }>(`/asset/upload`, { method: 'POST', body: JSON.stringify({ metadata }) }),
+  // ─── Asset ownership ───────────────────────────────────────────────────
+  listUserAccess: (id: string, limit = 100, cursor?: string): Promise<PaginatedResponse<AssetAccess>> =>
+    request<PaginatedResponse<AssetAccess>>(`/asset/${id}/user?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  addUserAccess: (id: string, email: string): Promise<void> =>
+    request<void>(`/asset/${id}/user/${encodeURIComponent(email)}`, { method: 'POST' }),
+  removeUserAccess: (id: string, email: string): Promise<void> =>
+    request<void>(`/asset/${id}/user/${encodeURIComponent(email)}`, { method: 'DELETE' }),
+  listTeamAccess: (id: string, limit = 100, cursor?: string): Promise<PaginatedResponse<AssetAccess>> =>
+    request<PaginatedResponse<AssetAccess>>(`/asset/${id}/team?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  addTeamAccess: (id: string, teamName: string): Promise<void> =>
+    request<void>(`/asset/${id}/team/${encodeURIComponent(teamName)}`, { method: 'POST' }),
+  removeTeamAccess: (id: string, teamName: string): Promise<void> =>
+    request<void>(`/asset/${id}/team/${encodeURIComponent(teamName)}`, { method: 'DELETE' }),
+};
+
+export const shareService = {
+  findAll: (assetId: string, limit = 100, cursor?: string): Promise<PaginatedResponse<Share>> =>
+    request<PaginatedResponse<Share>>(`/asset/${assetId}/share?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  create: (assetId: string, data: { duration?: string; expiresAt?: string }): Promise<Share> =>
+    request<Share>(`/asset/${assetId}/share`, { method: 'POST', body: JSON.stringify(data) }),
+  remove: (assetId: string, shareId: string): Promise<void> =>
+    request<void>(`/asset/${assetId}/share/${shareId}`, { method: 'DELETE' }),
+  // ─── Share access ──────────────────────────────────────────────────────
+  listUserAccess: (assetId: string, shareId: string, limit = 100, cursor?: string): Promise<PaginatedResponse<ShareAccess>> =>
+    request<PaginatedResponse<ShareAccess>>(`/asset/${assetId}/share/${shareId}/user?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  addUserAccess: (assetId: string, shareId: string, email: string): Promise<void> =>
+    request<void>(`/asset/${assetId}/share/${shareId}/user/${encodeURIComponent(email)}`, { method: 'POST' }),
+  removeUserAccess: (assetId: string, shareId: string, email: string): Promise<void> =>
+    request<void>(`/asset/${assetId}/share/${shareId}/user/${encodeURIComponent(email)}`, { method: 'DELETE' }),
+  listTeamAccess: (assetId: string, shareId: string, limit = 100, cursor?: string): Promise<PaginatedResponse<ShareAccess>> =>
+    request<PaginatedResponse<ShareAccess>>(`/asset/${assetId}/share/${shareId}/team?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  addTeamAccess: (assetId: string, shareId: string, teamName: string): Promise<void> =>
+    request<void>(`/asset/${assetId}/share/${shareId}/team/${encodeURIComponent(teamName)}`, { method: 'POST' }),
+  removeTeamAccess: (assetId: string, shareId: string, teamName: string): Promise<void> =>
+    request<void>(`/asset/${assetId}/share/${shareId}/team/${encodeURIComponent(teamName)}`, { method: 'DELETE' }),
 };

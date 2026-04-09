@@ -11,11 +11,10 @@ A platform that enables the management of 3d digital assets. 100% open source.
   - Raw uploads are stored at `assets/{asset_id}`
   - A metadata record is stored in DynamoDB capturing the original file metadata and the user who uploaded the asset (`packages/asset-upload-listener`)
   - An asset viewer is generated and stored in S3 under `viewer/{asset_id}` (`packages/asset-splat-transform`)
-  - **Ownership** is managed through a dedicated Cognito group:
-    - When an asset is created, a Cognito group is created with the asset ID as the group name
-    - The uploading user is the initial owner and is added to that group
-    - Additional users and teams can be added to the group to grant access
-    - When an asset is deleted, its Cognito group, raw upload, and viewer files are all removed
+  - Asset ownership is represented with the PK of the asset an SK of TEAM#<team_name> or USER#<user_email>
+  - The uploading user is the initial owner
+  - Additional users and teams can be added to the group to grant access, 
+  - When an asset is deleted, all of its associated data is also deleted, including the asset viewer, metadata, and shares
 - **User** → Represents a user of the platform:
   - Users are managed in Cognito
   - Users can be members of teams
@@ -23,14 +22,23 @@ A platform that enables the management of 3d digital assets. 100% open source.
 - **Team** → Represents a group of users:
   - Teams are backed by a Cognito group (group name = team ID)
   - Teams can be granted access to assets via asset ownership groups
+- **Share** → Represents a share of an asset:
+  - A share is a unique URL that can be used to access the asset
+  - A share has its own uuid
+  - When a share is created, it can have an optional duration e.g. 1 hour, 7 days, 3 months. 
+  - Shares can be revoked at any time
+  - Shares can be granted to users and teams
+  - Shares are represented in with the PK of the asset and the SK of the share
+  - Share access is represented with the PK of the share an SK of TEAM#<team_name> or USER#<user_email>
+  - Shares are added to an asset from the AssetListing page
 
-
+  
 ## Packaging
 
 Uses NPM workspace to with packages in the following directories
 
 - api: contains the management API and has endpoints for the above model
-- frontend: contains the management frontend, provides a user interface for uploading and adding mettadata to assets, creating and managing teams, creating and managing users, and provisioning shares for assets.
+- frontend: it contains the management frontend, provides a user interface for uploading and adding mettadata to assets, creating and managing teams, creating and managing users, and provisioning shares for assets.
 - infra: aws cdk infrastructure to deploy the application
 
 ### Management API 
