@@ -92,7 +92,7 @@ export const TeamDetailPage: React.FC = () => {
             Team Members
           </CardTitle>
         </CardHeader>
-        
+
         <CardContent className="pt-6 space-y-4">
           <form onSubmit={(e) => {
             e.preventDefault();
@@ -111,10 +111,7 @@ export const TeamDetailPage: React.FC = () => {
                 </NativeSelect.Field>
                 <NativeSelect.Indicator />
               </NativeSelect.Root>
-              <Button
-                type="submit"
-                disabled={!selectedUserId || addUserMutation.isPending}
-              >
+              <Button type="submit" disabled={!selectedUserId || addUserMutation.isPending}>
                 Add
               </Button>
             </Flex>

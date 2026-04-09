@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamService } from '../services/api.service';
-import { Plus, Trash2, ExternalLink, Users } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, Users, Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Input } from '@chakra-ui/react';
+import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Input, Text } from '@chakra-ui/react';
 
 interface Team {
   name: string;
@@ -15,6 +15,10 @@ export const TeamListPage: React.FC = () => {
   const [deleteName, setDeleteName] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
+  const [createDescription, setCreateDescription] = useState('');
+  const [editTeam, setEditTeam] = useState<Team | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
@@ -30,26 +34,43 @@ export const TeamListPage: React.FC = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => teamService.create({ name }),
+    mutationFn: (d: { name: string; description?: string }) => teamService.create(d),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams'] });
     },
   });
 
-  const handleCreate = () => {
-    setIsCreateOpen(true);
-  };
+  const updateMutation = useMutation({
+    mutationFn: ({ oldName, d }: { oldName: string; d: { name: string; description?: string } }) =>
+      teamService.update(oldName, d),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      setEditTeam(null);
+    },
+  });
 
   const submitCreate = () => {
     if (createName) {
-      createMutation.mutate(createName);
+      createMutation.mutate({ name: createName, description: createDescription || undefined });
       setIsCreateOpen(false);
       setCreateName('');
+      setCreateDescription('');
     }
   };
 
-  const handleDelete = (name: string) => {
-    setDeleteName(name);
+  const openEdit = (team: Team) => {
+    setEditTeam(team);
+    setEditName(team.name);
+    setEditDescription(team.description ?? '');
+  };
+
+  const submitEdit = () => {
+    if (editTeam && editName) {
+      updateMutation.mutate({
+        oldName: editTeam.name,
+        d: { name: editName, description: editDescription || undefined },
+      });
+    }
   };
 
   const confirmDelete = () => {
@@ -77,7 +98,7 @@ export const TeamListPage: React.FC = () => {
       key: 'description',
       header: 'Description',
       cellClassName: 'text-muted-foreground',
-      render: (team) => <span>{team.description || '-'}</span>
+      render: (team) => <span>{team.description || '-'}</span>,
     },
     {
       key: 'actions',
@@ -92,11 +113,15 @@ export const TeamListPage: React.FC = () => {
               View
             </Link>
           </Button>
+          <Button variant="ghost" size="sm" onClick={() => openEdit(team)}>
+            <Pencil />
+            Edit
+          </Button>
           <Button
             variant="ghost"
             size="sm"
             colorPalette="red"
-            onClick={() => handleDelete(team.name)}
+            onClick={() => setDeleteName(team.name)}
           >
             <Trash2 />
             Delete
@@ -113,7 +138,7 @@ export const TeamListPage: React.FC = () => {
     <Stack gap={6}>
       <Flex justify="space-between" align="center">
         <Heading size="2xl" color="fg">Teams</Heading>
-        <Button onClick={handleCreate}>
+        <Button onClick={() => setIsCreateOpen(true)}>
           <Plus className="h-5 w-5" />
           Add Team
         </Button>
@@ -139,7 +164,7 @@ export const TeamListPage: React.FC = () => {
               <Dialog.Title>Confirm Deletion</Dialog.Title>
             </Dialog.Header>
             <Dialog.Body>
-              Are you sure you want to delete this team?
+              Are you sure you want to delete <strong>{deleteName}</strong>?
             </Dialog.Body>
             <Dialog.Footer>
               <Button variant="outline" onClick={() => setDeleteName(null)}>Cancel</Button>
@@ -163,16 +188,78 @@ export const TeamListPage: React.FC = () => {
             </Dialog.Header>
             <form onSubmit={(e) => { e.preventDefault(); submitCreate(); }}>
               <Dialog.Body>
-                <Input
-                  placeholder="Enter Team Name"
-                  value={createName}
-                  onChange={(e) => setCreateName(e.target.value)}
-                  autoFocus
-                />
+                <Stack gap={4}>
+                  <Stack gap={1}>
+                    <Text fontSize="sm" fontWeight="medium">Name</Text>
+                    <Input
+                      placeholder="Enter team name"
+                      value={createName}
+                      onChange={(e) => setCreateName(e.target.value)}
+                      autoFocus
+                    />
+                  </Stack>
+                  <Stack gap={1}>
+                    <Text fontSize="sm" fontWeight="medium">Description</Text>
+                    <Input
+                      placeholder="Optional description"
+                      value={createDescription}
+                      onChange={(e) => setCreateDescription(e.target.value)}
+                    />
+                  </Stack>
+                </Stack>
               </Dialog.Body>
               <Dialog.Footer>
                 <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-                <Button type="submit" colorPalette="blue">Create</Button>
+                <Button type="submit" colorPalette="blue" disabled={!createName}>Create</Button>
+              </Dialog.Footer>
+            </form>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+
+      {/* Edit Dialog */}
+      <Dialog.Root open={!!editTeam} onOpenChange={(e: any) => !e.open && setEditTeam(null)}>
+        <Dialog.Backdrop />
+        {/* @ts-ignore */}
+        <Dialog.Positioner>
+          {/* @ts-ignore */}
+          <Dialog.Content>
+            <Dialog.CloseTrigger />
+            <Dialog.Header>
+              {/* @ts-ignore */}
+              <Dialog.Title>Edit Team</Dialog.Title>
+            </Dialog.Header>
+            <form onSubmit={(e) => { e.preventDefault(); submitEdit(); }}>
+              <Dialog.Body>
+                <Stack gap={4}>
+                  <Stack gap={1}>
+                    <Text fontSize="sm" fontWeight="medium">Name</Text>
+                    <Input
+                      placeholder="Enter team name"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      autoFocus
+                    />
+                  </Stack>
+                  <Stack gap={1}>
+                    <Text fontSize="sm" fontWeight="medium">Description</Text>
+                    <Input
+                      placeholder="Optional description"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                    />
+                  </Stack>
+                </Stack>
+              </Dialog.Body>
+              <Dialog.Footer>
+                <Button variant="outline" onClick={() => setEditTeam(null)}>Cancel</Button>
+                <Button
+                  type="submit"
+                  colorPalette="blue"
+                  disabled={!editName || updateMutation.isPending}
+                >
+                  {updateMutation.isPending ? 'Saving...' : 'Save'}
+                </Button>
               </Dialog.Footer>
             </form>
           </Dialog.Content>

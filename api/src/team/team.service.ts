@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CognitoIdentityProviderClient,
@@ -103,14 +107,67 @@ export class TeamService {
   async update(name: string, team: Team): Promise<Team> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
 
-    // Verify it exists
-    await this.findOne(name);
+    const existing = await this.findOne(name);
+    const newName = team.name ?? existing.name;
+    const newDescription = team.description ?? existing.description;
 
+    if (newName !== name) {
+      // Rename: Cognito has no rename operation, so create new group → copy
+      // all members → delete old group.
+      try {
+        await this.cognitoClient.send(
+          new CreateGroupCommand({
+            UserPoolId: userPoolId,
+            GroupName: newName,
+            Description: newDescription,
+          }),
+        );
+      } catch (error: any) {
+        if (error.name === 'GroupExistsException') {
+          throw new ConflictException(
+            `A team named '${newName}' already exists`,
+          );
+        }
+        throw error;
+      }
+
+      // Copy all members from the old group to the new one (paginated).
+      let nextToken: string | undefined;
+      do {
+        const page = await this.cognitoClient.send(
+          new ListUsersInGroupCommand({
+            UserPoolId: userPoolId,
+            GroupName: name,
+            NextToken: nextToken,
+          }),
+        );
+        await Promise.all(
+          (page.Users ?? []).map((u) =>
+            this.cognitoClient.send(
+              new AdminAddUserToGroupCommand({
+                UserPoolId: userPoolId,
+                GroupName: newName,
+                Username: u.Username,
+              }),
+            ),
+          ),
+        );
+        nextToken = page.NextToken;
+      } while (nextToken);
+
+      await this.cognitoClient.send(
+        new DeleteGroupCommand({ UserPoolId: userPoolId, GroupName: name }),
+      );
+
+      return { name: newName, description: newDescription };
+    }
+
+    // Description-only update.
     await this.cognitoClient.send(
       new UpdateGroupCommand({
         UserPoolId: userPoolId,
         GroupName: name,
-        Description: team.description,
+        Description: newDescription,
       }),
     );
 

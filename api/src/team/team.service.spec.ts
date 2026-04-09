@@ -119,7 +119,8 @@ describe('TeamService', () => {
   });
 
   describe('update', () => {
-    it('should update a team', async () => {
+    it('should update description only when name is unchanged', async () => {
+      // findOne → UpdateGroupCommand → findOne
       mockCognitoClient.send.mockResolvedValueOnce({
         Group: { GroupName: 'team-1', Description: 'Old Description' },
       });
@@ -140,6 +141,38 @@ describe('TeamService', () => {
         GroupName: 'team-1',
         Description: 'New Description',
       });
+    });
+
+    it('should rename: create new group, copy members, delete old group', async () => {
+      // findOne → CreateGroupCommand → ListUsersInGroupCommand → AdminAddUserToGroupCommand → DeleteGroupCommand
+      mockCognitoClient.send
+        .mockResolvedValueOnce({
+          Group: { GroupName: 'team-1', Description: 'Desc' },
+        }) // findOne
+        .mockResolvedValueOnce({}) // CreateGroupCommand
+        .mockResolvedValueOnce({
+          // ListUsersInGroupCommand (page 1, no more)
+          Users: [{ Username: 'user-1' }],
+          NextToken: undefined,
+        })
+        .mockResolvedValueOnce({}) // AdminAddUserToGroupCommand
+        .mockResolvedValueOnce({}); // DeleteGroupCommand
+
+      const result = await service.update('team-1', {
+        name: 'team-renamed',
+        description: 'Desc',
+      });
+
+      expect(result.name).toBe('team-renamed');
+
+      const calls = (cognitoClient.send as jest.Mock).mock.calls;
+      expect(calls[1][0].input).toMatchObject({ GroupName: 'team-renamed' }); // CreateGroupCommand
+      expect(calls[2][0].input).toMatchObject({ GroupName: 'team-1' }); // ListUsersInGroupCommand
+      expect(calls[3][0].input).toMatchObject({
+        GroupName: 'team-renamed',
+        Username: 'user-1',
+      }); // AddUser
+      expect(calls[4][0].input).toMatchObject({ GroupName: 'team-1' }); // DeleteGroupCommand
     });
   });
 
