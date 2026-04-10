@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  StreamableFile,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
@@ -287,6 +288,7 @@ export class ShareService {
     shareId: string,
     filename: string,
     username?: string,
+    token?: string,
   ) {
     // Resolve assetId from the share lookup record
     const lookup = await this.dynamoDBClient.send(
@@ -330,6 +332,24 @@ export class ShareService {
       if (!assetAccess.Item && !shareAccess.Item) {
         throw new ForbiddenException('Access denied');
       }
+    }
+
+    // For private shares, rewrite index.html so that relative sub-resource URLs
+    // (index.js, index.css, index.sog, settings.json) include the JWT token as
+    // a query parameter. Without this the browser requests sub-resources without
+    // the token and they fail the auth check.
+    if (filename === 'index.html' && token && !share.isPublic) {
+      const html = await this.assetService.getViewerHtmlString(assetId);
+      const encodedToken = encodeURIComponent(token);
+      const rewritten = html.replace(
+        /(["'(])((?:\.\/)?(?:index\.(?:js|css|sog)|settings\.json))(["')])/g,
+        `$1$2?token=${encodedToken}$3`,
+      );
+      return {
+        type: 'stream' as const,
+        file: new StreamableFile(Buffer.from(rewritten)),
+        contentType: 'text/html',
+      };
     }
 
     return this.assetService.getViewerFile(assetId, filename);

@@ -364,6 +364,26 @@ export class AssetService {
     }
   }
 
+  /** Returns index.html as a raw string so callers can rewrite its content. */
+  async getViewerHtmlString(id: string): Promise<string> {
+    const bucketName =
+      this.configService.get<string>('S3_UPLOAD_BUCKET') || 'asset-uploads';
+    const command = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: `viewer/${id}/index.html`,
+    });
+    try {
+      const response = await this.s3Client.send(command);
+      return (
+        response.Body as Readable & { transformToString(): Promise<string> }
+      ).transformToString();
+    } catch {
+      throw new NotFoundException(
+        `Viewer file 'index.html' not found for asset ${id}`,
+      );
+    }
+  }
+
   // ─── Ownership management ────────────────────────────────────────────────
 
   private async listAccessBySKPrefix(

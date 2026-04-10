@@ -221,13 +221,26 @@ export class ShareViewerController {
   async getViewerFile(
     @Param('shareId') shareId: string,
     @Param('file') file: string,
-    @Req() req: Request & { user?: JwtPayload },
+    @Req()
+    req: Request & {
+      user?: JwtPayload;
+      headers: Record<string, string>;
+      query: Record<string, string>;
+    },
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile | undefined> {
+    // Extract the raw JWT so it can be injected into index.html sub-resource URLs.
+    const authHeader: string = req.headers?.['authorization'] ?? '';
+    const rawToken: string =
+      (authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '') ||
+      req.query?.['token'] ||
+      '';
+
     const result = await this.shareService.getShareViewerFile(
       shareId,
       file,
       req.user?.username,
+      rawToken || undefined,
     );
     if (result.type === 'redirect') {
       res.redirect(302, result.url);
