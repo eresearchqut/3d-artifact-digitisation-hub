@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamService, userService } from '../services/api.service';
 import { ArrowLeft, UserPlus, Trash2, Users } from 'lucide-react';
-import { NativeSelect, Heading, Flex, Box, Stack, Button as ChakraButton } from '@chakra-ui/react';
+import { Heading, Flex, Box, Stack, Button as ChakraButton } from '@chakra-ui/react';
 import { Button } from '../components/Button/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card/Card';
 import { DataTable, Column } from '../components/DataTable/DataTable';
@@ -99,18 +99,16 @@ export const TeamDetailPage: React.FC = () => {
             if (selectedUserId) addUserMutation.mutate(selectedUserId);
           }}>
             <Flex gap={2}>
-              <NativeSelect.Root size="md" className="flex-1">
-                <NativeSelect.Field
-                  value={selectedUserId}
-                  onChange={(e) => setSelectedUserId(e.target.value)}
-                >
-                  <option value="">Select a user to add to team...</option>
-                  {allUsers?.data.filter(u => !teamUsers?.data.find(tu => tu.id === u.id)).map(user => (
-                    <option key={user.id} value={user.id}>{user.email}</option>
-                  ))}
-                </NativeSelect.Field>
-                <NativeSelect.Indicator />
-              </NativeSelect.Root>
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                style={{ flex: 1, fontSize: '0.875rem', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--chakra-colors-border)', background: 'var(--chakra-colors-bg)', color: 'var(--chakra-colors-fg)' }}
+              >
+                <option value="">Select a user to add to team...</option>
+                {allUsers?.data.filter(u => !teamUsers?.data.find(tu => tu.id === u.id)).map(user => (
+                  <option key={user.id} value={user.id}>{user.email}</option>
+                ))}
+              </select>
               <Button type="submit" disabled={!selectedUserId || addUserMutation.isPending}>
                 Add
               </Button>

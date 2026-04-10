@@ -367,13 +367,13 @@ export const AssetDetailPage: React.FC = () => {
       </Box>
 
       {/* Tabs: Access + Shares */}
-      <Tabs.Root defaultValue="access">
+      <Tabs.Root defaultValue="shares">
         {/* @ts-ignore */}
         <Tabs.List>
           {/* @ts-ignore */}
-          <Tabs.Trigger value="access"><Shield size={14} /> Access</Tabs.Trigger>
-          {/* @ts-ignore */}
           <Tabs.Trigger value="shares"><Link size={14} /> Shares</Tabs.Trigger>
+          {/* @ts-ignore */}
+          <Tabs.Trigger value="access"><Shield size={14} /> Access</Tabs.Trigger>
         </Tabs.List>
 
         {/* Access tab */}
