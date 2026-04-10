@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import {
@@ -74,6 +78,15 @@ export class ShareService {
         Item: marshall(item, { removeUndefinedValues: true }),
       }),
     );
+
+    // Write a lookup record so the share can be resolved by shareId alone
+    await this.dynamoDBClient.send(
+      new PutItemCommand({
+        TableName: this.tableName,
+        Item: marshall({ PK: `SHARE#${id}`, SK: `SHARE#${id}`, assetId }),
+      }),
+    );
+
     return this.mapShare(item);
   }
 
@@ -268,6 +281,58 @@ export class ShareService {
         Key: marshall({ PK: `SHARE#${shareId}`, SK: `TEAM#${teamName}` }),
       }),
     );
+  }
+
+  async getShareViewerFile(
+    shareId: string,
+    filename: string,
+    username?: string,
+  ) {
+    // Resolve assetId from the share lookup record
+    const lookup = await this.dynamoDBClient.send(
+      new GetItemCommand({
+        TableName: this.tableName,
+        Key: marshall({ PK: `SHARE#${shareId}`, SK: `SHARE#${shareId}` }),
+      }),
+    );
+    if (!lookup.Item) {
+      throw new NotFoundException(`Share ${shareId} not found`);
+    }
+    const { assetId } = unmarshall(lookup.Item);
+
+    const share = await this.findOne(assetId, shareId);
+
+    if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
+      throw new ForbiddenException('Share has expired');
+    }
+
+    if (!share.isPublic) {
+      if (!username) {
+        throw new ForbiddenException(
+          'Authentication required to access this share',
+        );
+      }
+      const [assetAccess, shareAccess] = await Promise.all([
+        this.dynamoDBClient.send(
+          new GetItemCommand({
+            TableName: this.tableName,
+            Key: marshall({ PK: `ASSET#${assetId}`, SK: `USER#${username}` }),
+          }),
+        ),
+        this.dynamoDBClient.send(
+          new GetItemCommand({
+            TableName: this.tableName,
+            Key: marshall({ PK: `SHARE#${shareId}`, SK: `USER#${username}` }),
+          }),
+        ),
+      ]);
+
+      if (!assetAccess.Item && !shareAccess.Item) {
+        throw new ForbiddenException('Access denied');
+      }
+    }
+
+    return this.assetService.getViewerFile(assetId, filename);
   }
 
   private mapShare(u: Record<string, any>): Share {

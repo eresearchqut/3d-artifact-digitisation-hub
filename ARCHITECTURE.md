@@ -36,6 +36,7 @@ A platform that enables the management of 3d digital assets. 100% open source.
   - A non-public share can have specific users and teams granted access; access records are stored with PK=`SHARE#<shareId>`, SK=`USER#<email>` or `TEAM#<team_name>`, with `grantedAt` and `grantedBy` fields
   - A share is accessible if: it is public, OR the requester is a listed asset owner or share member, AND either no expiry is set or the expiry has not elapsed
   - Shares are managed from the AssetDetail page and can be revoked at any time
+  - The API exposes a dedicated share viewer endpoint `GET /share/{shareId}/{file}` (where `{file}` is one of `index.html`, `index.css`, `index.js`, `index.sog`, `settings.json`). It enforces the access rules above — auth is optional; public shares are served to anyone, non-public shares require the caller to be an asset owner or share member. File serving delegates to the same mechanism as the asset viewer. When a share is created, a lookup record (`PK=SHARE#<id>`, `SK=SHARE#<id>`) is written so the endpoint can resolve the asset without the caller needing to know the `assetId`.
 
 ## Packaging
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { assetService, shareService, userService, teamService } from '../services/api.service';
+import { assetService, shareService, userService, teamService, getBaseUrl } from '../services/api.service';
 import { Share, ShareAccess, AssetAccess } from '../services/types';
 import {
   Box,
@@ -18,7 +18,7 @@ import {
   Dialog,
 } from '@chakra-ui/react';
 import { Switch } from '../components/ui/switch';
-import { ArrowLeft, Plus, Trash2, Link, Users, Shield } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Link, Users, Shield, Copy } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 
 // ─── Duration helpers ─────────────────────────────────────────────────────────
@@ -168,6 +168,7 @@ function ShareRow({
   const durationLabel = share.durationValue && share.durationUnit
     ? `${share.durationValue} ${share.durationUnit}(s)`
     : null;
+  const shareUrl = `${getBaseUrl()}/share/${share.id}/index.html`;
 
   return (
     <Box borderWidth="1px" borderRadius="md" p={4} bg="bg.subtle">

@@ -9,6 +9,8 @@ import {
   HttpCode,
   Req,
   UseGuards,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,15 +18,17 @@ import {
   ApiResponse,
   ApiQuery,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { Request } from 'express';
+import type { Response } from 'express';
 import { ShareService } from './share.service';
 import { Share, ShareAccess, CreateShareDto } from './share.model';
 import {
   ApiPaginatedResponse,
   PaginatedResponse,
 } from '../utils/pagination.model';
-import { AuthGuard } from '../auth/auth.guard';
+import { AuthGuard, OptionalAuthGuard } from '../auth/auth.guard';
 import { JwtPayload } from '../auth/auth.constants';
 
 @ApiTags('share')
@@ -186,5 +190,50 @@ export class ShareController {
     @Param('teamName') teamName: string,
   ): Promise<void> {
     return this.shareService.removeShareTeamAccess(assetId, shareId, teamName);
+  }
+}
+
+@ApiTags('share')
+@Controller('share')
+export class ShareViewerController {
+  constructor(private readonly shareService: ShareService) {}
+
+  @Get(':shareId/:file')
+  @UseGuards(OptionalAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Access a viewer file via a share link' })
+  @ApiParam({ name: 'shareId', description: 'Share UUID' })
+  @ApiParam({
+    name: 'file',
+    description: 'Viewer filename',
+    enum: ['index.html', 'index.css', 'index.js', 'index.sog', 'settings.json'],
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Viewer file (index.html streamed directly)',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to presigned S3 URL (all other files)',
+  })
+  @ApiResponse({ status: 403, description: 'Share expired or access denied' })
+  @ApiResponse({ status: 404, description: 'Share or file not found' })
+  async getViewerFile(
+    @Param('shareId') shareId: string,
+    @Param('file') file: string,
+    @Req() req: Request & { user?: JwtPayload },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile | undefined> {
+    const result = await this.shareService.getShareViewerFile(
+      shareId,
+      file,
+      req.user?.username,
+    );
+    if (result.type === 'redirect') {
+      res.redirect(302, result.url);
+      return;
+    }
+    res.set({ 'Content-Type': result.contentType });
+    return result.file;
   }
 }
