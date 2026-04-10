@@ -5,8 +5,9 @@ export interface Column<T> {
   key: keyof T | string;
   header: string;
   render?: (row: T) => React.ReactNode;
-  headerClassName?: string;
-  cellClassName?: string;
+  textAlign?: 'left' | 'right' | 'center';
+  cellStyle?: React.CSSProperties;
+  headerStyle?: React.CSSProperties;
 }
 
 export interface DataTableProps<T> {
@@ -28,7 +29,11 @@ export function DataTable<T>({
         <Table.Header>
           <Table.Row>
             {columns.map((col, idx) => (
-              <Table.ColumnHeader key={String(col.key) + idx} className={col.headerClassName}>
+              <Table.ColumnHeader
+                key={String(col.key) + idx}
+                textAlign={col.textAlign}
+                style={col.headerStyle}
+              >
                 {col.header}
               </Table.ColumnHeader>
             ))}
@@ -45,7 +50,11 @@ export function DataTable<T>({
             data.map((row) => (
               <Table.Row key={keyExtractor(row)}>
                 {columns.map((col, idx) => (
-                  <Table.Cell key={String(col.key) + idx} className={col.cellClassName}>
+                  <Table.Cell
+                    key={String(col.key) + idx}
+                    textAlign={col.textAlign}
+                    style={col.cellStyle}
+                  >
                     {col.render ? col.render(row) : String(row[col.key as keyof T] ?? '')}
                   </Table.Cell>
                 ))}

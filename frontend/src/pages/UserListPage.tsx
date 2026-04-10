@@ -4,7 +4,7 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { userService } from '../services/api.service';
 import { Plus, Trash2, Mail, ShieldCheck, ShieldOff, KeyRound, RefreshCw } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Input, Checkbox } from '@chakra-ui/react';
+import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Input, Checkbox, Text } from '@chakra-ui/react';
 
 interface User {
   id: string;
@@ -107,15 +107,14 @@ export const UserListPage: React.FC = () => {
   };
 
   const columns: Column<User>[] = [
-    { key: 'id', header: 'ID', cellClassName: 'text-muted-foreground font-mono' },
+    { key: 'id', header: 'ID', render: (user) => <Text color="fg.muted" fontFamily="mono">{user.id}</Text> },
     {
       key: 'email',
       header: 'Email',
-      cellClassName: 'font-medium text-foreground',
       render: (user) => (
         <Flex align="center" gap={3}>
           <Box bg="colorPalette.muted" p={1.5} borderRadius="md" color="colorPalette.fg">
-            <Mail className="h-4 w-4" />
+            <Mail size={16} />
           </Box>
           <span>{user.email}</span>
         </Flex>
@@ -127,7 +126,7 @@ export const UserListPage: React.FC = () => {
       render: (user) =>
         user.isAdmin ? (
           <Badge colorPalette="purple" variant="solid" size="sm">
-            <ShieldCheck className="h-3 w-3" />
+            <ShieldCheck size={12} />
             Admin
           </Badge>
         ) : (
@@ -139,8 +138,7 @@ export const UserListPage: React.FC = () => {
     {
       key: 'actions',
       header: 'Actions',
-      headerClassName: 'text-right',
-      cellClassName: 'text-right',
+      textAlign: 'right',
       render: (user) => (
         <HStack justify="flex-end">
           {/* Hide the admin toggle entirely for the current user's own row */}
@@ -152,7 +150,7 @@ export const UserListPage: React.FC = () => {
               onClick={() => setAdminMutation.mutate({ id: user.id, isAdmin: !user.isAdmin })}
               title={user.isAdmin ? 'Remove admin role' : 'Grant admin role'}
             >
-              {user.isAdmin ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+              {user.isAdmin ? <ShieldOff size={16} /> : <ShieldCheck size={16} />}
               {user.isAdmin ? 'Remove Admin' : 'Make Admin'}
             </Button>
           )}
@@ -163,7 +161,7 @@ export const UserListPage: React.FC = () => {
             onClick={() => { setResetPasswordUserId(user.id); setNewPassword(''); setRequireReset(true); }}
             title="Reset password"
           >
-            <KeyRound className="h-4 w-4" />
+            <KeyRound size={16} />
             Reset Password
           </Button>
           {user.sub !== currentSub && (
@@ -190,7 +188,7 @@ export const UserListPage: React.FC = () => {
       <Flex justify="space-between" align="center">
         <Heading size="2xl" color="fg">Users</Heading>
         <Button onClick={handleCreate}>
-          <Plus className="h-5 w-5" />
+          <Plus size={20} />
           Add User
         </Button>
       </Flex>
@@ -284,7 +282,7 @@ export const UserListPage: React.FC = () => {
                       required
                     />
                     <Button type="button" variant="outline" size="sm" onClick={generatePassword} title="Generate strong password">
-                      <RefreshCw className="h-4 w-4" />
+                      <RefreshCw size={16} />
                       Generate
                     </Button>
                   </HStack>

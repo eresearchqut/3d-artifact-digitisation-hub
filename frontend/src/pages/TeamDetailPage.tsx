@@ -3,8 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamService, userService } from '../services/api.service';
 import { ArrowLeft, UserPlus, Trash2, Users, Plus } from 'lucide-react';
-import { Heading, Flex, Box, Stack, Button } from '@chakra-ui/react';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/Card/Card';
+import { Heading, Flex, Box, Stack, Button, Text, HStack, Card } from '@chakra-ui/react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 
 export const TeamDetailPage: React.FC = () => {
@@ -57,7 +56,7 @@ export const TeamDetailPage: React.FC = () => {
             size="sm"
             onClick={() => removeUserMutation.mutate(user.id)}
           >
-            <Trash2 className="h-4 w-4 mr-2" />
+            <Trash2 size={16} />
             Remove
           </Button>
         </Flex>
@@ -69,30 +68,32 @@ export const TeamDetailPage: React.FC = () => {
 
   return (
     <Stack gap={8}>
-      <Link to="/team" className="inline-flex items-center text-primary hover:text-primary/80">
-        <ArrowLeft className="h-4 w-4 mr-1" />
-        Back to Teams
-      </Link>
+      <Button asChild variant="ghost" size="sm">
+        <Link to="/team">
+          <ArrowLeft size={16} />
+          Back to Teams
+        </Link>
+      </Button>
 
       <Flex align="center" gap={4}>
         <Box bg="colorPalette.muted" p={3} borderRadius="xl" color="colorPalette.fg">
-          <Users className="h-8 w-8" />
+          <Users size={32} />
         </Box>
         <Box>
           <Heading size="3xl" color="fg">{team?.name || 'Untitled Team'}</Heading>
-          {team?.description && <p className="text-muted-foreground text-sm">{team.description}</p>}
+          {team?.description && <Text color="fg.muted" fontSize="sm">{team.description}</Text>}
         </Box>
       </Flex>
 
-      <Card className="max-w-2xl">
-        <CardHeader className="border-b pb-4">
-          <CardTitle className="flex items-center">
-            <UserPlus className="mr-2 h-5 w-5" />
-            Team Members
-          </CardTitle>
-        </CardHeader>
+      <Card.Root maxW="2xl">
+        <Card.Header borderBottomWidth="1px" pb={4}>
+          <HStack>
+            <UserPlus size={20} />
+            <Card.Title>Team Members</Card.Title>
+          </HStack>
+        </Card.Header>
 
-        <CardContent className="pt-6 space-y-4">
+        <Card.Body pt={6}>
           <form onSubmit={(e) => {
             e.preventDefault();
             if (selectedUserId) addUserMutation.mutate(selectedUserId);
@@ -122,8 +123,8 @@ export const TeamDetailPage: React.FC = () => {
               keyExtractor={(row: any) => row.id}
             />
           </Box>
-        </CardContent>
-      </Card>
+        </Card.Body>
+      </Card.Root>
     </Stack>
   );
 };

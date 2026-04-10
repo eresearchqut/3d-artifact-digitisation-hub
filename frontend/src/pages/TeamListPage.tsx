@@ -57,11 +57,10 @@ export const TeamListPage: React.FC = () => {
     {
       key: 'name',
       header: 'Name',
-      cellClassName: 'font-medium text-foreground',
       render: (team) => (
         <Flex align="center" gap={3}>
           <Box bg="colorPalette.muted" p={1.5} borderRadius="md" color="colorPalette.fg">
-            <Users className="h-4 w-4" />
+            <Users size={16} />
           </Box>
           <span>{team.name || 'Untitled Team'}</span>
         </Flex>
@@ -70,14 +69,12 @@ export const TeamListPage: React.FC = () => {
     {
       key: 'description',
       header: 'Description',
-      cellClassName: 'text-muted-foreground',
-      render: (team) => <span>{team.description || '-'}</span>,
+      render: (team) => <Text color="fg.muted">{team.description || '-'}</Text>,
     },
     {
       key: 'actions',
       header: 'Actions',
-      headerClassName: 'text-right',
-      cellClassName: 'text-right space-x-3',
+      textAlign: 'right',
       render: (team) => (
         <HStack gap={2} justify="flex-end">
           <Button asChild variant="ghost" size="sm" colorPalette="blue">
@@ -108,7 +105,7 @@ export const TeamListPage: React.FC = () => {
       <Flex justify="space-between" align="center">
         <Heading size="2xl" color="fg">Teams</Heading>
         <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-5 w-5" />
+          <Plus size={20} />
           Add Team
         </Button>
       </Flex>

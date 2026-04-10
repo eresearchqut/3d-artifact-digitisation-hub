@@ -72,8 +72,7 @@ function AccessSection({
     {
       key: 'actions',
       header: '',
-      headerClassName: 'text-right',
-      cellClassName: 'text-right',
+      textAlign: 'right',
       render: (row) => (
         <Button variant="ghost" size="sm" colorPalette="red" onClick={() => onRemove(row.id)}>
           <Trash2 /> Remove

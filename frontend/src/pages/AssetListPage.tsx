@@ -120,7 +120,7 @@ export const AssetListPage: React.FC = () => {
   };
 
   const columns: Column<Asset>[] = [
-    { key: 'id', header: 'ID', cellClassName: 'text-muted-foreground font-mono text-xs' },
+    { key: 'id', header: 'ID', render: (asset) => <Text color="fg.muted" fontFamily="mono" fontSize="xs">{asset.id}</Text> },
     {
       key: 'name',
       header: 'Name',
@@ -144,8 +144,7 @@ export const AssetListPage: React.FC = () => {
     {
       key: 'actions',
       header: 'Actions',
-      headerClassName: 'text-right',
-      cellClassName: 'text-right',
+      textAlign: 'right',
       render: (asset) => (
         <HStack justify="flex-end">
           <Button variant="ghost" size="sm" colorPalette="blue" onClick={() => navigate(`/asset/${asset.id}`)}>

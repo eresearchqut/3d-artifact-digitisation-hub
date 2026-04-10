@@ -1,8 +1,8 @@
 import React from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { LayoutDashboard, Users, UserCircle, Globe, LogOut } from 'lucide-react';
-import { Box, Flex, VStack, HStack, Text, Heading, Icon } from '@chakra-ui/react';
-import { Button } from '../Button/Button';
+import { Box, Flex, VStack, HStack, Text, Heading, Icon, Button as ChakraButton } from '@chakra-ui/react';
+
 import { ColorModeButton } from '../ui/color-mode';
 import { useIsAdmin } from '../../hooks/useIsAdmin';
 
@@ -69,14 +69,24 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSignOut }) => {
           ))}
         </VStack>
         <Box p="4" borderTop="1px solid" borderColor={{ base: 'gray.200', _dark: 'gray.700' }}>
-          <Button
+          <ChakraButton
             variant="ghost"
-            className="w-full justify-start text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600 dark:hover:text-red-400"
+            w="full"
+            justifyContent="flex-start"
+            css={{
+              color: 'colors.gray.600',
+              _dark: { color: 'colors.gray.400' },
+              _hover: {
+                bg: 'colors.red.50',
+                color: 'colors.red.600',
+                _dark: { bg: 'colors.red.950', color: 'colors.red.400' },
+              },
+            }}
             onClick={onSignOut}
           >
             <Icon as={LogOut} boxSize="5" mr="3" />
             Sign Out
-          </Button>
+          </ChakraButton>
         </Box>
       </Box>
 
