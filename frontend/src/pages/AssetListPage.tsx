@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { assetService, getBaseUrl } from '../services/api.service';
-import { Plus, Trash2, Globe, Settings } from 'lucide-react';
+import { Plus, Trash2, Globe, Settings2 } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Text } from '@chakra-ui/react';
 import { FilePicker } from '../components/FilePicker/FilePicker';
@@ -148,8 +148,8 @@ export const AssetListPage: React.FC = () => {
       cellClassName: 'text-right',
       render: (asset) => (
         <HStack justify="flex-end">
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/asset/${asset.id}`)}>
-            <Settings />
+          <Button variant="ghost" size="sm" colorPalette="blue" onClick={() => navigate(`/asset/${asset.id}`)}>
+            <Settings2 />
             Manage
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setViewerAsset(asset)}>

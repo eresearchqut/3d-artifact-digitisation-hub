@@ -102,6 +102,7 @@ function AccessSection({
         </select>
         <Button
           size="sm"
+          colorPalette="blue"
           disabled={!selected}
           onClick={() => { onAdd(selected); setSelected(''); }}
         >
@@ -490,6 +491,7 @@ export const AssetDetailPage: React.FC = () => {
             <Dialog.Footer>
               <Button variant="outline" onClick={() => setIsCreateShareOpen(false)}>Cancel</Button>
               <Button
+                colorPalette="blue"
                 loading={createShareMutation.isPending}
                 onClick={() => createShareMutation.mutate()}
               >

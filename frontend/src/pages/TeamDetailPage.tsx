@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamService, userService } from '../services/api.service';
-import { ArrowLeft, UserPlus, Trash2, Users } from 'lucide-react';
-import { Heading, Flex, Box, Stack, Button as ChakraButton } from '@chakra-ui/react';
-import { Button } from '../components/Button/Button';
+import { ArrowLeft, UserPlus, Trash2, Users, Plus } from 'lucide-react';
+import { Heading, Flex, Box, Stack, Button } from '@chakra-ui/react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card/Card';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 
@@ -52,7 +51,7 @@ export const TeamDetailPage: React.FC = () => {
       key: 'actions',
       render: (user: any) => (
         <Flex justify="flex-end">
-          <ChakraButton
+          <Button
             variant="ghost"
             colorPalette="red"
             size="sm"
@@ -60,7 +59,7 @@ export const TeamDetailPage: React.FC = () => {
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Remove
-          </ChakraButton>
+          </Button>
         </Flex>
       ),
     },
@@ -109,8 +108,8 @@ export const TeamDetailPage: React.FC = () => {
                   <option key={user.id} value={user.id}>{user.email}</option>
                 ))}
               </select>
-              <Button type="submit" disabled={!selectedUserId || addUserMutation.isPending}>
-                Add
+              <Button type="submit" colorPalette="blue" size="md" disabled={!selectedUserId || addUserMutation.isPending}>
+                <Plus /> Add
               </Button>
             </Flex>
           </form>
