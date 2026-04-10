@@ -7,34 +7,36 @@ A platform that enables the management of 3d digital assets. 100% open source.
 ## Model
 
 - **Asset** → Represents a 3D asset:
-  - Assets are uploaded into S3 using presigned URLs
-  - Raw uploads are stored at `assets/{asset_id}`
-  - A metadata record is stored in DynamoDB capturing the original file metadata and the user who uploaded the asset (`packages/asset-upload-listener`)
-  - An asset viewer is generated and stored in S3 under `viewer/{asset_id}` (`packages/asset-splat-transform`)
-  - Asset ownership is represented with the PK of the asset and an SK of `USER#<user_email>` or `TEAM#<team_name>`
-  - The uploading user is automatically added as the initial owner
-  - Additional users and teams can be granted access at any time; access can also be revoked at any time with no minimum-owner constraint
-  - The asset listing page displays all assets regardless of ownership
-  - When an asset is deleted, all of its associated data is also deleted, including the asset viewer, metadata, ownership records, and shares
+  - Supported formats: `.ply`, `.spz`, `.splat`, `.sog`
+  - Upload flow: the client calls `POST /asset/upload` (authenticated) to receive a presigned S3 PUT URL; the asset record is written to DynamoDB immediately with `status: pending`, then the client PUTs the file directly to S3
+  - Raw uploads are stored in S3 at `assets/{asset_id}`
+  - The DynamoDB record (PK=`ASSET#<id>`, SK=`ASSET#<id>`) stores: `bucket`, `key`, `uploadedAt`, `uploadedBy`, `status`, and a `metadata` map containing the original file name, size, MIME type, and last-modified timestamp
+  - An asset viewer is generated and stored in S3 under `viewer/{asset_id}/` by the `packages/asset-splat-transform` package
+  - Asset access is stored as separate DynamoDB items sharing the asset's partition key: PK=`ASSET#<id>`, SK=`USER#<user_email>` or `TEAM#<team_name>`, with `grantedAt` and `grantedBy` fields
+  - The uploading user is automatically granted access (`grantedBy` set to themselves)
+  - Additional users and teams can be granted or revoked access at any time with no minimum-owner constraint
+  - The asset listing page displays all assets regardless of access
+  - When an asset is deleted, all DynamoDB items under `ASSET#<id>` are removed (main record, access records, share records), all share access records under each `SHARE#<id>` are removed, and the raw S3 file and viewer files are deleted
+
 - **User** → Represents a user of the platform:
-  - Users are managed in Cognito
+  - Users are managed in Cognito; each user has an `id` (Cognito username) and an `email`
   - Users can be members of teams
-  - Users can be granted access to assets via asset ownership groups
+  - Users can be granted access to assets and shares
+
 - **Team** → Represents a group of users:
-  - Teams are backed by a Cognito group (group name = team ID)
-  - Teams can be granted access to assets via asset ownership groups
-- **Share** → Represents a share of an asset:
-  - A share is a unique URL that can be used to access the asset viewer
-  - A share has its own uuid
-  - When a share is created, it can have an optional duration e.g. 1 hour, 7 days, 3 months. This is input as a numeric value (1-60) and a duration of minute|hour|day|week|month|year.
-  - A share can be flagged as public
-  - Shares can be revoked at any time
-  - Shares can be granted to users and teams
-  - Shares are represented in with the PK of the asset and the SK of the share
-  - Share access is represented with the PK of the share an SK of TEAM#<team_name> or USER#<user_email>
-  - Shares are managed from the AssetDetail page
-  - A share can be accessed anonymously if it is public or is an owner of the asset or a member granted to the share AND there is no duration set or a duration is set and the duration has not elapsed based on the share creation date
-  
+  - Teams are backed by a Cognito group (group name = team name)
+  - Each team has a `name` and an optional `description`
+  - Teams can be granted access to assets and shares
+
+- **Share** → Represents a shareable link to an asset's viewer:
+  - Stored in DynamoDB with PK=`ASSET#<assetId>`, SK=`SHARE#<shareId>`
+  - Fields: `id`, `assetId`, `createdAt`, `createdBy`, optional `durationValue` (integer 1–60), optional `durationUnit` (`minute`|`hour`|`day`|`week`|`month`|`year`), computed `expiresAt` (ISO timestamp derived from duration at creation time), and `isPublic` flag
+  - A share with no duration set never expires
+  - A public share can be accessed anonymously; the Manage Access controls are hidden for public shares
+  - A non-public share can have specific users and teams granted access; access records are stored with PK=`SHARE#<shareId>`, SK=`USER#<email>` or `TEAM#<team_name>`, with `grantedAt` and `grantedBy` fields
+  - A share is accessible if: it is public, OR the requester is a listed asset owner or share member, AND either no expiry is set or the expiry has not elapsed
+  - Shares are managed from the AssetDetail page and can be revoked at any time
+
 ## Packaging
 
 Uses NPM workspace to with packages in the following directories
