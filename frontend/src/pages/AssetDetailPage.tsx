@@ -17,25 +17,22 @@ import {
   Tabs,
   Dialog,
 } from '@chakra-ui/react';
+import { Switch } from '../components/ui/switch';
 import { ArrowLeft, Plus, Trash2, Link, Users, Shield } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { CronInput } from '../components/CronInput';
 
 // ─── Duration helpers ─────────────────────────────────────────────────────────
 
-const DURATION_OPTIONS = [
-  { label: '1 hour', hours: 1 },
-  { label: '1 day', hours: 24 },
-  { label: '7 days', hours: 24 * 7 },
-  { label: '30 days', hours: 24 * 30 },
-  { label: '3 months', hours: 24 * 90 },
-  { label: 'Never', hours: null },
-];
+type DurationUnit = 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
 
-function computeExpiresAt(hours: number | null): string | undefined {
-  if (!hours) return undefined;
-  return new Date(Date.now() + hours * 3_600_000).toISOString();
-}
+const DURATION_UNITS: { label: string; value: DurationUnit }[] = [
+  { label: 'Minute(s)', value: 'minute' },
+  { label: 'Hour(s)', value: 'hour' },
+  { label: 'Day(s)', value: 'day' },
+  { label: 'Week(s)', value: 'week' },
+  { label: 'Month(s)', value: 'month' },
+  { label: 'Year(s)', value: 'year' },
+];
 
 // ─── Reusable access sub-section ─────────────────────────────────────────────
 
@@ -152,6 +149,9 @@ function ShareRow({
   });
 
   const isExpired = share.expiresAt && new Date(share.expiresAt) < new Date();
+  const durationLabel = share.durationValue && share.durationUnit
+    ? `${share.durationValue} ${share.durationUnit}(s)`
+    : null;
 
   return (
     <Box borderWidth="1px" borderRadius="md" p={4} bg="bg.subtle">
@@ -159,6 +159,7 @@ function ShareRow({
         <Stack gap={1}>
           <HStack>
             <Text fontFamily="mono" fontSize="sm">{share.id}</Text>
+            {share.isPublic && <Badge colorPalette="purple">Public</Badge>}
             {share.expiresAt ? (
               <Badge colorPalette={isExpired ? 'red' : 'green'}>
                 {isExpired ? 'Expired' : `Expires ${new Date(share.expiresAt).toLocaleDateString()}`}
@@ -170,10 +171,8 @@ function ShareRow({
           <Text fontSize="xs" color="fg.muted">
             Created {new Date(share.createdAt).toLocaleString()}
             {share.createdBy ? ` by ${share.createdBy}` : ''}
+            {durationLabel ? ` · Duration: ${durationLabel}` : ''}
           </Text>
-          {share.duration && (
-            <Text fontSize="xs" color="fg.muted">Schedule: <code>{share.duration}</code></Text>
-          )}
         </Stack>
         <HStack>
           <Button variant="ghost" size="sm" onClick={() => setExpanded((v) => !v)}>
@@ -219,9 +218,9 @@ export const AssetDetailPage: React.FC = () => {
   const qc = useQueryClient();
 
   const [isCreateShareOpen, setIsCreateShareOpen] = useState(false);
-  const [shareDurationHours, setShareDurationHours] = useState<number | null>(24);
-  const [shareCron, setShareCron] = useState('0 0 * * *');
-  const [useCronExpiry, setUseCronExpiry] = useState(false);
+  const [durationValue, setDurationValue] = useState<string>('');
+  const [durationUnit, setDurationUnit] = useState<DurationUnit>('day');
+  const [isPublic, setIsPublic] = useState(false);
 
   const { data: asset, isLoading } = useQuery({
     queryKey: ['asset', id],
@@ -265,16 +264,19 @@ export const AssetDetailPage: React.FC = () => {
   });
 
   const createShareMutation = useMutation({
-    mutationFn: () =>
-      shareService.create(id!, {
-        ...(useCronExpiry ? { duration: shareCron } : {}),
-        ...(!useCronExpiry && shareDurationHours
-          ? { expiresAt: computeExpiresAt(shareDurationHours) }
-          : {}),
-      }),
+    mutationFn: () => {
+      const parsed = parseInt(durationValue, 10);
+      return shareService.create(id!, {
+        ...(durationValue && !isNaN(parsed) ? { durationValue: parsed, durationUnit } : {}),
+        isPublic,
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['asset-shares', id] });
       setIsCreateShareOpen(false);
+      setDurationValue('');
+      setDurationUnit('day');
+      setIsPublic(false);
     },
   });
 
@@ -398,38 +400,40 @@ export const AssetDetailPage: React.FC = () => {
                   A share creates a unique link that can be granted to users and teams.
                 </Text>
                 <Stack gap={2}>
-                  <Text fontSize="sm" fontWeight="medium">Expiry</Text>
-                  <HStack flexWrap="wrap" gap={2}>
-                    {DURATION_OPTIONS.map((opt) => (
-                      <Button
-                        key={opt.label}
-                        size="sm"
-                        variant={!useCronExpiry && shareDurationHours === opt.hours ? 'solid' : 'outline'}
-                        onClick={() => { setShareDurationHours(opt.hours); setUseCronExpiry(false); }}
-                      >
-                        {opt.label}
-                      </Button>
-                    ))}
-                    <Button
+                  <Text fontSize="sm" fontWeight="medium">Duration (optional)</Text>
+                  <HStack>
+                    <Input
+                      placeholder="1–60"
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={durationValue}
+                      onChange={(e) => setDurationValue(e.target.value)}
                       size="sm"
-                      variant={useCronExpiry ? 'solid' : 'outline'}
-                      onClick={() => setUseCronExpiry(true)}
+                      maxW="100px"
+                    />
+                    <select
+                      value={durationUnit}
+                      onChange={(e) => setDurationUnit(e.target.value as DurationUnit)}
+                      style={{ fontSize: '0.875rem', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--chakra-colors-border)' }}
                     >
-                      Custom schedule…
-                    </Button>
+                      {DURATION_UNITS.map((u) => (
+                        <option key={u.value} value={u.value}>{u.label}</option>
+                      ))}
+                    </select>
                   </HStack>
-                  {useCronExpiry && (
-                    <Box pt={2}>
-                      <Text fontSize="xs" color="fg.muted" mb={2}>
-                        Set a cron schedule for when this share expires:
-                      </Text>
-                      <CronInput
-                        value={shareCron}
-                        onChange={(e) => setShareCron(e.target.value)}
-                      />
-                    </Box>
-                  )}
+                  <Text fontSize="xs" color="fg.muted">Leave blank for no expiry.</Text>
                 </Stack>
+                <HStack justify="space-between" align="center">
+                  <Stack gap={0}>
+                    <Text fontSize="sm" fontWeight="medium">Public</Text>
+                    <Text fontSize="xs" color="fg.muted">Allow anonymous access via the share link.</Text>
+                  </Stack>
+                  <Switch
+                    checked={isPublic}
+                    onCheckedChange={({ checked }: { checked: boolean }) => setIsPublic(checked)}
+                  />
+                </HStack>
               </Stack>
             </Dialog.Body>
             <Dialog.Footer>

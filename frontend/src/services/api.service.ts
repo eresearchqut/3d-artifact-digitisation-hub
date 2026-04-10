@@ -105,7 +105,7 @@ export const assetService = {
 export const shareService = {
   findAll: (assetId: string, limit = 100, cursor?: string): Promise<PaginatedResponse<Share>> =>
     request<PaginatedResponse<Share>>(`/asset/${assetId}/share?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
-  create: (assetId: string, data: { duration?: string; expiresAt?: string }): Promise<Share> =>
+  create: (assetId: string, data: { durationValue?: number; durationUnit?: string; isPublic?: boolean }): Promise<Share> =>
     request<Share>(`/asset/${assetId}/share`, { method: 'POST', body: JSON.stringify(data) }),
   remove: (assetId: string, shareId: string): Promise<void> =>
     request<void>(`/asset/${assetId}/share/${shareId}`, { method: 'DELETE' }),

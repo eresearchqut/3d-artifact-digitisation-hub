@@ -9,9 +9,23 @@ import {
   QueryCommand,
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { Share, ShareAccess, CreateShareDto } from './share.model';
+import {
+  Share,
+  ShareAccess,
+  CreateShareDto,
+  DurationUnit,
+} from './share.model';
 import { PaginatedResponse } from '../utils/pagination.model';
 import { AssetService } from '../asset/asset.service';
+
+const UNIT_MS: Record<DurationUnit, number> = {
+  minute: 60_000,
+  hour: 3_600_000,
+  day: 86_400_000,
+  week: 604_800_000,
+  month: 2_592_000_000,
+  year: 31_536_000_000,
+};
 
 @Injectable()
 export class ShareService {
@@ -34,6 +48,14 @@ export class ShareService {
     await this.assetService.findOne(assetId);
     const id = randomUUID();
     const now = new Date().toISOString();
+
+    const expiresAt =
+      dto.durationValue && dto.durationUnit
+        ? new Date(
+            Date.now() + dto.durationValue * UNIT_MS[dto.durationUnit],
+          ).toISOString()
+        : undefined;
+
     const item = {
       PK: `ASSET#${assetId}`,
       SK: `SHARE#${id}`,
@@ -41,8 +63,10 @@ export class ShareService {
       assetId,
       createdAt: now,
       ...(createdBy && { createdBy }),
-      ...(dto.duration && { duration: dto.duration }),
-      ...(dto.expiresAt && { expiresAt: dto.expiresAt }),
+      ...(dto.durationValue && { durationValue: dto.durationValue }),
+      ...(dto.durationUnit && { durationUnit: dto.durationUnit }),
+      ...(expiresAt && { expiresAt }),
+      ...(dto.isPublic !== undefined && { isPublic: dto.isPublic }),
     };
     await this.dynamoDBClient.send(
       new PutItemCommand({
@@ -247,8 +271,10 @@ export class ShareService {
       assetId: u.assetId,
       createdAt: u.createdAt,
       ...(u.createdBy && { createdBy: u.createdBy }),
-      ...(u.duration && { duration: u.duration }),
+      ...(u.durationValue && { durationValue: u.durationValue }),
+      ...(u.durationUnit && { durationUnit: u.durationUnit }),
       ...(u.expiresAt && { expiresAt: u.expiresAt }),
+      ...(u.isPublic !== undefined && { isPublic: u.isPublic }),
     };
   }
 }

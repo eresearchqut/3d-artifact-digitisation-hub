@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export type DurationUnit =
+  | 'minute'
+  | 'hour'
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'year';
+
 export class Share {
   @ApiProperty()
   id: string;
@@ -9,16 +17,20 @@ export class Share {
   createdAt: string;
   @ApiProperty({ required: false })
   createdBy?: string;
+  @ApiProperty({ required: false, minimum: 1, maximum: 60 })
+  durationValue?: number;
   @ApiProperty({
     required: false,
-    description: 'Cron expression describing expiry schedule',
+    enum: ['minute', 'hour', 'day', 'week', 'month', 'year'],
   })
-  duration?: string;
+  durationUnit?: DurationUnit;
   @ApiProperty({
     required: false,
-    description: 'ISO timestamp when share expires (null = never)',
+    description: 'ISO timestamp when share expires (omitted = never)',
   })
   expiresAt?: string;
+  @ApiProperty({ required: false, default: false })
+  isPublic?: boolean;
 }
 
 export class ShareAccess {
@@ -31,6 +43,7 @@ export class ShareAccess {
 }
 
 export class CreateShareDto {
-  duration?: string;
-  expiresAt?: string;
+  durationValue?: number;
+  durationUnit?: DurationUnit;
+  isPublic?: boolean;
 }

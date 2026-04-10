@@ -68,7 +68,7 @@ export class AssetService {
     // A better approach would be to use a GSI or query if the partition key is known.
     const command = new ScanCommand({
       TableName: this.tableName,
-      FilterExpression: 'begins_with(PK, :prefix)',
+      FilterExpression: 'begins_with(PK, :prefix) AND begins_with(SK, :prefix)',
       ExpressionAttributeValues: marshall({ ':prefix': 'ASSET#' }),
       Limit: limit,
       ExclusiveStartKey: cursor

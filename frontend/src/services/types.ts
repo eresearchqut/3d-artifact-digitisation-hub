@@ -37,8 +37,10 @@ export interface Share {
   assetId: string;
   createdAt: string;
   createdBy?: string;
-  duration?: string;
+  durationValue?: number;
+  durationUnit?: 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
   expiresAt?: string;
+  isPublic?: boolean;
 }
 
 export interface ShareAccess {
