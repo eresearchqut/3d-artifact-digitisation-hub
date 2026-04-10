@@ -190,6 +190,12 @@ function ShareRow({
             {share.createdBy ? ` by ${share.createdBy}` : ''}
             {durationLabel ? ` · Duration: ${durationLabel}` : ''}
           </Text>
+          <HStack gap={1}>
+            <Text fontFamily="mono" fontSize="xs" color="fg.muted" truncate maxW="420px">{shareUrl}</Text>
+            <Button variant="ghost" size="xs" onClick={() => navigator.clipboard.writeText(shareUrl)} aria-label="Copy share URL">
+              <Copy size={12} />
+            </Button>
+          </HStack>
         </Stack>
         <HStack>
           {!share.isPublic && (
