@@ -65,6 +65,11 @@ function AccessSection({
       render: (row) => <span>{row.grantedAt ? new Date(row.grantedAt).toLocaleString() : '—'}</span>,
     },
     {
+      key: 'grantedBy',
+      header: 'Granted By',
+      render: (row) => <span>{(row as AssetAccess).grantedBy ?? '—'}</span>,
+    },
+    {
       key: 'actions',
       header: '',
       headerClassName: 'text-right',

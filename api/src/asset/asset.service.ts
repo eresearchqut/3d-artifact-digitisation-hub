@@ -295,6 +295,7 @@ export class AssetService {
           PK: `ASSET#${id}`,
           SK: `USER#${uploadedBy}`,
           grantedAt: new Date().toISOString(),
+          grantedBy: uploadedBy,
         }),
       }),
     );
@@ -392,6 +393,7 @@ export class AssetService {
         id: u.SK.replace(/^(USER|TEAM)#/, ''),
         type: u.SK.startsWith('USER#') ? 'user' : 'team',
         grantedAt: u.grantedAt,
+        ...(u.grantedBy && { grantedBy: u.grantedBy }),
       };
     });
 
@@ -414,7 +416,11 @@ export class AssetService {
     return this.listAccessBySKPrefix(assetId, 'USER#', limit, cursor);
   }
 
-  async addUserAccess(assetId: string, email: string): Promise<void> {
+  async addUserAccess(
+    assetId: string,
+    email: string,
+    grantedBy?: string,
+  ): Promise<void> {
     await this.findOne(assetId);
     await this.dynamoDBClient.send(
       new PutItemCommand({
@@ -423,6 +429,7 @@ export class AssetService {
           PK: `ASSET#${assetId}`,
           SK: `USER#${email}`,
           grantedAt: new Date().toISOString(),
+          ...(grantedBy && { grantedBy }),
         }),
       }),
     );
@@ -447,7 +454,11 @@ export class AssetService {
     return this.listAccessBySKPrefix(assetId, 'TEAM#', limit, cursor);
   }
 
-  async addTeamAccess(assetId: string, teamName: string): Promise<void> {
+  async addTeamAccess(
+    assetId: string,
+    teamName: string,
+    grantedBy?: string,
+  ): Promise<void> {
     await this.findOne(assetId);
     await this.dynamoDBClient.send(
       new PutItemCommand({
@@ -456,6 +467,7 @@ export class AssetService {
           PK: `ASSET#${assetId}`,
           SK: `TEAM#${teamName}`,
           grantedAt: new Date().toISOString(),
+          ...(grantedBy && { grantedBy }),
         }),
       }),
     );

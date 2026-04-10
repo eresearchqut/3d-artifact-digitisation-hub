@@ -30,6 +30,7 @@ export interface AssetAccess {
   id: string;
   type: 'user' | 'team';
   grantedAt?: string;
+  grantedBy?: string;
 }
 
 export interface Share {
@@ -47,4 +48,5 @@ export interface ShareAccess {
   id: string;
   type: 'user' | 'team';
   grantedAt?: string;
+  grantedBy?: string;
 }

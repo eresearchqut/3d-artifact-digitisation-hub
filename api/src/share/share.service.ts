@@ -168,6 +168,7 @@ export class ShareService {
         id: u.SK.replace(/^(USER|TEAM)#/, ''),
         type: u.SK.startsWith('USER#') ? 'user' : 'team',
         grantedAt: u.grantedAt,
+        ...(u.grantedBy && { grantedBy: u.grantedBy }),
       };
     });
 
@@ -195,6 +196,7 @@ export class ShareService {
     assetId: string,
     shareId: string,
     email: string,
+    grantedBy?: string,
   ): Promise<void> {
     await this.findOne(assetId, shareId);
     await this.dynamoDBClient.send(
@@ -204,6 +206,7 @@ export class ShareService {
           PK: `SHARE#${shareId}`,
           SK: `USER#${email}`,
           grantedAt: new Date().toISOString(),
+          ...(grantedBy && { grantedBy }),
         }),
       }),
     );
@@ -237,6 +240,7 @@ export class ShareService {
     assetId: string,
     shareId: string,
     teamName: string,
+    grantedBy?: string,
   ): Promise<void> {
     await this.findOne(assetId, shareId);
     await this.dynamoDBClient.send(
@@ -246,6 +250,7 @@ export class ShareService {
           PK: `SHARE#${shareId}`,
           SK: `TEAM#${teamName}`,
           grantedAt: new Date().toISOString(),
+          ...(grantedBy && { grantedBy }),
         }),
       }),
     );

@@ -139,13 +139,16 @@ export class AssetController {
 
   @Post(':id/user/:email')
   @HttpCode(201)
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Grant a user access to an asset' })
   @ApiResponse({ status: 201, description: 'Access granted' })
   addUserAccess(
     @Param('id') id: string,
     @Param('email') email: string,
+    @Req() req: Request & { user: JwtPayload },
   ): Promise<void> {
-    return this.assetService.addUserAccess(id, email);
+    return this.assetService.addUserAccess(id, email, req.user.username);
   }
 
   @Delete(':id/user/:email')
@@ -179,13 +182,16 @@ export class AssetController {
 
   @Post(':id/team/:teamName')
   @HttpCode(201)
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Grant a team access to an asset' })
   @ApiResponse({ status: 201, description: 'Access granted' })
   addTeamAccess(
     @Param('id') id: string,
     @Param('teamName') teamName: string,
+    @Req() req: Request & { user: JwtPayload },
   ): Promise<void> {
-    return this.assetService.addTeamAccess(id, teamName);
+    return this.assetService.addTeamAccess(id, teamName, req.user.username);
   }
 
   @Delete(':id/team/:teamName')

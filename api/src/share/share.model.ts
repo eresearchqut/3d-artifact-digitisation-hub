@@ -40,6 +40,8 @@ export class ShareAccess {
   type: 'user' | 'team';
   @ApiProperty({ required: false })
   grantedAt?: string;
+  @ApiProperty({ required: false })
+  grantedBy?: string;
 }
 
 export class CreateShareDto {

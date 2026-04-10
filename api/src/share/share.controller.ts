@@ -107,14 +107,22 @@ export class ShareController {
 
   @Post(':shareId/user/:email')
   @HttpCode(201)
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Grant a user access to a share' })
   @ApiResponse({ status: 201, description: 'Access granted' })
   addShareUserAccess(
     @Param('assetId') assetId: string,
     @Param('shareId') shareId: string,
     @Param('email') email: string,
+    @Req() req: Request & { user: JwtPayload },
   ): Promise<void> {
-    return this.shareService.addShareUserAccess(assetId, shareId, email);
+    return this.shareService.addShareUserAccess(
+      assetId,
+      shareId,
+      email,
+      req.user.username,
+    );
   }
 
   @Delete(':shareId/user/:email')
@@ -151,14 +159,22 @@ export class ShareController {
 
   @Post(':shareId/team/:teamName')
   @HttpCode(201)
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Grant a team access to a share' })
   @ApiResponse({ status: 201, description: 'Access granted' })
   addShareTeamAccess(
     @Param('assetId') assetId: string,
     @Param('shareId') shareId: string,
     @Param('teamName') teamName: string,
+    @Req() req: Request & { user: JwtPayload },
   ): Promise<void> {
-    return this.shareService.addShareTeamAccess(assetId, shareId, teamName);
+    return this.shareService.addShareTeamAccess(
+      assetId,
+      shareId,
+      teamName,
+      req.user.username,
+    );
   }
 
   @Delete(':shareId/team/:teamName')
