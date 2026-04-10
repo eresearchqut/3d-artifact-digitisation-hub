@@ -15,7 +15,11 @@ import {
   CreateTableCommand,
   PutItemCommand,
 } from '@aws-sdk/client-dynamodb';
-import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  CreateBucketCommand,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { AppModule } from './../src/app.module';
 
@@ -479,5 +483,140 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
   it('should have ConfigService providing the correct USER_POOL_ID', () => {
     const configService = app.get<ConfigService>(ConfigService);
     expect(configService.get('USER_POOL_ID')).toBe(userPoolId);
+  });
+
+  describe('GET /share/:shareId/:file — share viewer access control', () => {
+    const assetId = 'e2e-share-viewer-asset';
+    const publicShareId = 'e2e-public-share';
+    const ownerShareId = 'e2e-owner-share';
+    const memberShareId = 'e2e-member-share';
+    const expiredShareId = 'e2e-expired-share';
+
+    beforeAll(async () => {
+      const dynamoDBClient = app.get(DynamoDBClient);
+      const s3Client = app.get(S3Client);
+      const now = new Date().toISOString();
+      const expired = new Date(Date.now() - 60_000).toISOString();
+
+      // Asset record
+      await dynamoDBClient.send(
+        new PutItemCommand({
+          TableName: tableName,
+          Item: {
+            PK: { S: `ASSET#${assetId}` },
+            SK: { S: `ASSET#${assetId}` },
+            key: { S: `assets/${assetId}` },
+          },
+        }),
+      );
+
+      // Asset owner access — testUserEmail owns this asset
+      await dynamoDBClient.send(
+        new PutItemCommand({
+          TableName: tableName,
+          Item: {
+            PK: { S: `ASSET#${assetId}` },
+            SK: { S: `USER#${testUserEmail}` },
+            grantedAt: { S: now },
+            grantedBy: { S: testUserEmail },
+          },
+        }),
+      );
+
+      // Public share — main item + lookup record
+      for (const share of [
+        { id: publicShareId, isPublic: true, expiresAt: null },
+        { id: ownerShareId, isPublic: false, expiresAt: null },
+        { id: memberShareId, isPublic: false, expiresAt: null },
+        { id: expiredShareId, isPublic: true, expiresAt: expired },
+      ]) {
+        const item: Record<string, any> = {
+          PK: { S: `ASSET#${assetId}` },
+          SK: { S: `SHARE#${share.id}` },
+          shareId: { S: share.id },
+          assetId: { S: assetId },
+          createdAt: { S: now },
+          isPublic: { BOOL: share.isPublic },
+        };
+        if (share.expiresAt) {
+          item.expiresAt = { S: share.expiresAt };
+        }
+        await dynamoDBClient.send(
+          new PutItemCommand({ TableName: tableName, Item: item }),
+        );
+
+        // Lookup record so getShareViewerFile can resolve assetId by shareId
+        await dynamoDBClient.send(
+          new PutItemCommand({
+            TableName: tableName,
+            Item: {
+              PK: { S: `SHARE#${share.id}` },
+              SK: { S: `SHARE#${share.id}` },
+              assetId: { S: assetId },
+            },
+          }),
+        );
+      }
+
+      // Share member access on memberShare — testUserEmail is a share member
+      await dynamoDBClient.send(
+        new PutItemCommand({
+          TableName: tableName,
+          Item: {
+            PK: { S: `SHARE#${memberShareId}` },
+            SK: { S: `USER#${testUserEmail}` },
+            grantedAt: { S: now },
+          },
+        }),
+      );
+
+      // Seed a minimal viewer index.html in S3
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: 'asset-uploads',
+          Key: `viewer/${assetId}/index.html`,
+          Body: '<html><body>viewer</body></html>',
+          ContentType: 'text/html',
+        }),
+      );
+    });
+
+    it('serves a public share without authentication', async () => {
+      await request(app.getHttpServer())
+        .get(`/share/${publicShareId}/index.html`)
+        .expect(200);
+    });
+
+    it('serves a non-public share to an authenticated asset owner', async () => {
+      await request(app.getHttpServer())
+        .get(`/share/${ownerShareId}/index.html`)
+        .set('Authorization', `Bearer ${testIdToken}`)
+        .expect(200);
+    });
+
+    it('serves a non-public share to an authenticated share member', async () => {
+      await request(app.getHttpServer())
+        .get(`/share/${memberShareId}/index.html`)
+        .set('Authorization', `Bearer ${testIdToken}`)
+        .expect(200);
+    });
+
+    it('rejects an unauthenticated request to a non-public share with 403', async () => {
+      await request(app.getHttpServer())
+        .get(`/share/${ownerShareId}/index.html`)
+        .expect(403);
+    });
+
+    it('rejects an expired share with 403', async () => {
+      await request(app.getHttpServer())
+        .get(`/share/${expiredShareId}/index.html`)
+        .expect(403);
+    });
+
+    it('returns 404 for a non-existent share', async () => {
+      await request(app.getHttpServer())
+        .get('/share/00000000-0000-0000-0000-000000000000/index.html')
+        .expect(404);
+    });
   });
 });
