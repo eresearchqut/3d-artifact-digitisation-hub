@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { userService } from '../services/api.service';
-import { Plus, Trash2, Mail, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Plus, Trash2, Mail, ShieldCheck, ShieldOff, KeyRound, RefreshCw } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Input } from '@chakra-ui/react';
+import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Input, Checkbox } from '@chakra-ui/react';
 
 interface User {
   id: string;
@@ -18,6 +18,9 @@ export const UserListPage: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createEmail, setCreateEmail] = useState('');
   const [currentSub, setCurrentSub] = useState<string | null>(null);
+  const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [requireReset, setRequireReset] = useState(true);
 
   useEffect(() => {
     fetchAuthSession()
@@ -55,6 +58,30 @@ export const UserListPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
   });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: ({ id, password, requireReset: req }: { id: string; password: string; requireReset: boolean }) =>
+      userService.resetPassword(id, password, req),
+    onSuccess: () => {
+      setResetPasswordUserId(null);
+      setNewPassword('');
+      setRequireReset(true);
+    },
+  });
+
+  const generatePassword = () => {
+    const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lower = 'abcdefghijklmnopqrstuvwxyz';
+    const digits = '0123456789';
+    const special = '!@#$%^&*()-_=+[]{}';
+    const all = upper + lower + digits + special;
+    const rand = (set: string) => set[Math.floor(Math.random() * set.length)];
+    // Guarantee at least one of each required class then pad to 16 chars
+    const required = [rand(upper), rand(lower), rand(digits), rand(special)];
+    const rest = Array.from({ length: 12 }, () => rand(all));
+    const password = [...required, ...rest].sort(() => Math.random() - 0.5).join('');
+    setNewPassword(password);
+  };
 
   const handleCreate = () => {
     setIsCreateOpen(true);
@@ -132,12 +159,24 @@ export const UserListPage: React.FC = () => {
           <Button
             variant="ghost"
             size="sm"
-            colorPalette="red"
-            onClick={() => handleDelete(user.id)}
+            colorPalette="blue"
+            onClick={() => { setResetPasswordUserId(user.id); setNewPassword(''); setRequireReset(true); }}
+            title="Reset password"
           >
-            <Trash2 />
-            Delete
+            <KeyRound className="h-4 w-4" />
+            Reset Password
           </Button>
+          {user.sub !== currentSub && (
+            <Button
+              variant="ghost"
+              size="sm"
+              colorPalette="red"
+              onClick={() => handleDelete(user.id)}
+            >
+              <Trash2 />
+              Delete
+            </Button>
+          )}
         </HStack>
       ),
     },
@@ -210,6 +249,65 @@ export const UserListPage: React.FC = () => {
               <Dialog.Footer>
                 <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
                 <Button type="submit" colorPalette="blue">Create</Button>
+              </Dialog.Footer>
+            </form>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+      {/* Reset Password Dialog */}
+      <Dialog.Root open={!!resetPasswordUserId} onOpenChange={(e: any) => !e.open && setResetPasswordUserId(null)}>
+        <Dialog.Backdrop />
+        {/* @ts-ignore */}
+        <Dialog.Positioner>
+          {/* @ts-ignore */}
+          <Dialog.Content>
+            <Dialog.CloseTrigger />
+            <Dialog.Header>
+              {/* @ts-ignore */}
+              <Dialog.Title>Reset Password</Dialog.Title>
+            </Dialog.Header>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (resetPasswordUserId && newPassword) {
+                resetPasswordMutation.mutate({ id: resetPasswordUserId, password: newPassword, requireReset });
+              }
+            }}>
+              <Dialog.Body>
+                <Stack gap={4}>
+                  <HStack gap={2}>
+                    <Input
+                      flex="1"
+                      placeholder="New password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      autoFocus
+                      required
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={generatePassword} title="Generate strong password">
+                      <RefreshCw className="h-4 w-4" />
+                      Generate
+                    </Button>
+                  </HStack>
+                  <Checkbox.Root
+                    checked={requireReset}
+                    onCheckedChange={(details) => setRequireReset(!!details.checked)}
+                  >
+                    <Checkbox.HiddenInput />
+                    <Checkbox.Control />
+                    <Checkbox.Label>Require password reset on next login</Checkbox.Label>
+                  </Checkbox.Root>
+                </Stack>
+              </Dialog.Body>
+              <Dialog.Footer>
+                <Button variant="outline" type="button" onClick={() => setResetPasswordUserId(null)}>Cancel</Button>
+                <Button
+                  type="submit"
+                  colorPalette="blue"
+                  loading={resetPasswordMutation.isPending}
+                  disabled={!newPassword}
+                >
+                  Reset Password
+                </Button>
               </Dialog.Footer>
             </form>
           </Dialog.Content>

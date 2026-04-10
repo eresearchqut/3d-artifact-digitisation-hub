@@ -61,6 +61,8 @@ export const userService = {
   remove: (id: string): Promise<void> => request<void>(`/user/${id}`, { method: 'DELETE' }),
   setAdmin: (id: string, isAdmin: boolean): Promise<void> =>
     request<void>(`/user/${id}/admin`, { method: 'PUT', body: JSON.stringify({ isAdmin }) }),
+  resetPassword: (id: string, password: string, requireReset: boolean): Promise<void> =>
+    request<void>(`/user/${id}/password`, { method: 'PUT', body: JSON.stringify({ password, requireReset }) }),
 };
 
 export const teamService = {

@@ -11,6 +11,7 @@ import {
   AdminUpdateUserAttributesCommand,
   AdminAddUserToGroupCommand,
   AdminRemoveUserFromGroupCommand,
+  AdminSetUserPasswordCommand,
   ListUsersCommand,
   ListUsersInGroupCommand,
   AdminGetUserCommand,
@@ -169,10 +170,14 @@ export class UserService {
     };
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, callerSub: string): Promise<void> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
 
-    await this.findOne(id);
+    const targetUser = await this.findOne(id);
+
+    if (targetUser.sub === callerSub) {
+      throw new ForbiddenException('You cannot delete your own account');
+    }
 
     await this.cognitoClient.send(
       new AdminDeleteUserCommand({
@@ -205,6 +210,27 @@ export class UserService {
         UserPoolId: userPoolId,
         Username: id,
         GroupName: ADMINISTRATORS_GROUP,
+      }),
+    );
+  }
+
+  async resetPassword(
+    id: string,
+    password: string,
+    requireReset: boolean,
+  ): Promise<void> {
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+
+    await this.findOne(id);
+
+    await this.cognitoClient.send(
+      new AdminSetUserPasswordCommand({
+        UserPoolId: userPoolId,
+        Username: id,
+        Password: password,
+        // When Permanent is false Cognito marks the account FORCE_CHANGE_PASSWORD,
+        // prompting the user to set a new password on next login.
+        Permanent: !requireReset,
       }),
     );
   }

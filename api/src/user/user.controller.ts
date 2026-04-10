@@ -71,9 +71,13 @@ export class UserController {
   @Delete(':id')
   @ApiOperation({ summary: 'Delete user' })
   @ApiResponse({ status: 200, description: 'User deleted' })
+  @ApiResponse({ status: 403, description: 'Cannot delete your own account' })
   @ApiResponse({ status: 404, description: 'User not found' })
-  remove(@Param('id') id: string) {
-    return this.userService.remove(id);
+  remove(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { sub: string } },
+  ) {
+    return this.userService.remove(id, req.user.sub);
   }
 
   @Put(':id/admin')
@@ -92,5 +96,16 @@ export class UserController {
     @Req() req: Request & { user: { sub: string } },
   ): Promise<void> {
     return this.userService.setAdmin(id, body.isAdmin, req.user.sub);
+  }
+
+  @Put(':id/password')
+  @ApiOperation({ summary: 'Reset a user password (admin only)' })
+  @ApiResponse({ status: 200, description: 'Password reset' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  resetPassword(
+    @Param('id') id: string,
+    @Body() body: { password: string; requireReset: boolean },
+  ): Promise<void> {
+    return this.userService.resetPassword(id, body.password, body.requireReset);
   }
 }
