@@ -7,17 +7,28 @@ import {
   Param,
   Delete,
   Query,
+  Put,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { User } from './user.model';
 import {
   ApiPaginatedResponse,
   PaginatedResponse,
 } from '../utils/pagination.model';
+import { AdminGuard } from '../auth/auth.guard';
 
 @ApiTags('user')
 @Controller('user')
+@UseGuards(AdminGuard)
+@ApiBearerAuth()
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
@@ -62,5 +73,18 @@ export class UserController {
   @ApiResponse({ status: 404, description: 'User not found' })
   remove(@Param('id') id: string) {
     return this.userService.remove(id);
+  }
+
+  @Put(':id/admin')
+  @ApiOperation({
+    summary: 'Grant or revoke the administrator role for a user',
+  })
+  @ApiResponse({ status: 200, description: 'Admin role updated' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  setAdmin(
+    @Param('id') id: string,
+    @Body() body: { isAdmin: boolean },
+  ): Promise<void> {
+    return this.userService.setAdmin(id, body.isAdmin);
   }
 }

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userService } from '../services/api.service';
-import { Plus, Trash2, Mail } from 'lucide-react';
+import { Plus, Trash2, Mail, ShieldCheck, ShieldOff } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Input } from '@chakra-ui/react';
+import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Input } from '@chakra-ui/react';
 
 interface User {
   id: string;
   email: string;
+  isAdmin?: boolean;
 }
 
 export const UserListPage: React.FC = () => {
@@ -30,6 +31,14 @@ export const UserListPage: React.FC = () => {
 
   const createMutation = useMutation({
     mutationFn: (email: string) => userService.create({ email }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
+  const setAdminMutation = useMutation({
+    mutationFn: ({ id, isAdmin }: { id: string; isAdmin: boolean }) =>
+      userService.setAdmin(id, isAdmin),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
@@ -74,12 +83,37 @@ export const UserListPage: React.FC = () => {
       ),
     },
     {
+      key: 'isAdmin',
+      header: 'Role',
+      render: (user) =>
+        user.isAdmin ? (
+          <Badge colorPalette="purple" variant="solid" size="sm">
+            <ShieldCheck className="h-3 w-3" />
+            Admin
+          </Badge>
+        ) : (
+          <Badge colorPalette="gray" variant="outline" size="sm">
+            User
+          </Badge>
+        ),
+    },
+    {
       key: 'actions',
       header: 'Actions',
       headerClassName: 'text-right',
       cellClassName: 'text-right',
       render: (user) => (
         <HStack justify="flex-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            colorPalette={user.isAdmin ? 'gray' : 'purple'}
+            onClick={() => setAdminMutation.mutate({ id: user.id, isAdmin: !user.isAdmin })}
+            title={user.isAdmin ? 'Remove admin role' : 'Grant admin role'}
+          >
+            {user.isAdmin ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+            {user.isAdmin ? 'Remove Admin' : 'Make Admin'}
+          </Button>
           <Button
             variant="ghost"
             size="sm"

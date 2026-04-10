@@ -4,6 +4,7 @@ import { LayoutDashboard, Users, UserCircle, Globe, LogOut } from 'lucide-react'
 import { Box, Flex, VStack, HStack, Text, Heading, Icon } from '@chakra-ui/react';
 import { Button } from '../Button/Button';
 import { ColorModeButton } from '../ui/color-mode';
+import { useIsAdmin } from '../../hooks/useIsAdmin';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,12 +12,14 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, onSignOut }) => {
+  const isAdmin = useIsAdmin();
+
   const navItems = [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-    { to: '/team', label: 'Teams', icon: Users },
-    { to: '/user', label: 'Users', icon: UserCircle },
-    { to: '/asset', label: 'Assets', icon: Globe },
-  ];
+    { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true, adminOnly: false },
+    { to: '/team', label: 'Teams', icon: Users, adminOnly: true },
+    { to: '/user', label: 'Users', icon: UserCircle, adminOnly: true },
+    { to: '/asset', label: 'Assets', icon: Globe, adminOnly: false },
+  ].filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <Flex h="100vh" bg={{ base: 'gray.100', _dark: 'gray.900' }}>

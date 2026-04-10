@@ -3,7 +3,11 @@ import { PassportStrategy } from '@nestjs/passport';
 import { passportJwtSecret } from 'jwks-rsa';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
-import { DEFAULT_USERNAME_CLAIM, JwtPayload } from './auth.constants';
+import {
+  DEFAULT_USERNAME_CLAIM,
+  ADMINISTRATORS_GROUP,
+  JwtPayload,
+} from './auth.constants';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -42,6 +46,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!username) {
       throw new UnauthorizedException('Invalid token: missing email claim');
     }
-    return { username };
+    const groups = (payload['cognito:groups'] as string[] | undefined) ?? [];
+    return { username, isAdmin: groups.includes(ADMINISTRATORS_GROUP) };
   }
 }

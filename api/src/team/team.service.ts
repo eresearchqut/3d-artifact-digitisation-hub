@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -19,6 +20,17 @@ import { Team } from './team.model';
 import { User } from '../user/user.model';
 import { UserService } from '../user/user.service';
 import { PaginatedResponse } from '../utils/pagination.model';
+import { ADMINISTRATORS_GROUP } from '../auth/auth.constants';
+
+const RESERVED_GROUP = ADMINISTRATORS_GROUP;
+
+function assertNotReserved(name: string) {
+  if (name?.toLowerCase() === RESERVED_GROUP) {
+    throw new ForbiddenException(
+      `'${RESERVED_GROUP}' is a reserved group and cannot be managed as a team`,
+    );
+  }
+}
 
 @Injectable()
 export class TeamService {
@@ -29,6 +41,7 @@ export class TeamService {
   ) {}
 
   async create(team: Team): Promise<Team> {
+    assertNotReserved(team.name);
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
 
     const response = await this.cognitoClient.send(
@@ -63,10 +76,12 @@ export class TeamService {
       }),
     );
 
-    const data: Team[] = (response.Groups || []).map((group) => ({
-      name: group.GroupName,
-      description: group.Description,
-    }));
+    const data: Team[] = (response.Groups || [])
+      .filter((group) => group.GroupName?.toLowerCase() !== RESERVED_GROUP)
+      .map((group) => ({
+        name: group.GroupName,
+        description: group.Description,
+      }));
 
     return {
       data,
@@ -79,6 +94,7 @@ export class TeamService {
   }
 
   async findOne(name: string): Promise<Team> {
+    assertNotReserved(name);
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
 
     try {
@@ -105,6 +121,8 @@ export class TeamService {
   }
 
   async update(name: string, team: Team): Promise<Team> {
+    assertNotReserved(name);
+    if (team.name) assertNotReserved(team.name);
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
 
     const existing = await this.findOne(name);

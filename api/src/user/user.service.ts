@@ -5,11 +5,15 @@ import {
   AdminCreateUserCommand,
   AdminDeleteUserCommand,
   AdminUpdateUserAttributesCommand,
+  AdminAddUserToGroupCommand,
+  AdminRemoveUserFromGroupCommand,
   ListUsersCommand,
+  ListUsersInGroupCommand,
   AdminGetUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { User } from './user.model';
 import { PaginatedResponse } from '../utils/pagination.model';
+import { ADMINISTRATORS_GROUP } from '../auth/auth.constants';
 
 @Injectable()
 export class UserService {
@@ -47,19 +51,36 @@ export class UserService {
   ): Promise<PaginatedResponse<User>> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
 
-    const response = await this.cognitoClient.send(
-      new ListUsersCommand({
-        UserPoolId: userPoolId,
-        Limit: limit,
-        PaginationToken: cursor,
-      }),
+    const [usersResponse, adminsResponse] = await Promise.all([
+      this.cognitoClient.send(
+        new ListUsersCommand({
+          UserPoolId: userPoolId,
+          Limit: limit,
+          PaginationToken: cursor,
+        }),
+      ),
+      // Fetch current admin members to annotate each user with isAdmin.
+      // Ignore errors gracefully — the administrators group may not exist yet.
+      this.cognitoClient
+        .send(
+          new ListUsersInGroupCommand({
+            UserPoolId: userPoolId,
+            GroupName: ADMINISTRATORS_GROUP,
+          }),
+        )
+        .catch(() => ({ Users: [] })),
+    ]);
+
+    const adminUsernames = new Set(
+      (adminsResponse.Users ?? []).map((u) => u.Username),
     );
 
-    const data: User[] = (response.Users || []).map((u) => {
+    const data: User[] = (usersResponse.Users || []).map((u) => {
       const emailAttr = u.Attributes?.find((a) => a.Name === 'email');
       return {
         id: u.Username,
         email: emailAttr?.Value || '',
+        isAdmin: adminUsernames.has(u.Username),
       } as User;
     });
 
@@ -67,8 +88,8 @@ export class UserService {
       data,
       pagination: {
         limit,
-        has_more: !!response.PaginationToken,
-        next_cursor: response.PaginationToken,
+        has_more: !!usersResponse.PaginationToken,
+        next_cursor: usersResponse.PaginationToken,
       },
     };
   }
@@ -77,20 +98,31 @@ export class UserService {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
 
     try {
-      const response = await this.cognitoClient.send(
-        new AdminGetUserCommand({
-          UserPoolId: userPoolId,
-          Username: id,
-        }),
-      );
+      const [userResponse, adminsResponse] = await Promise.all([
+        this.cognitoClient.send(
+          new AdminGetUserCommand({ UserPoolId: userPoolId, Username: id }),
+        ),
+        this.cognitoClient
+          .send(
+            new ListUsersInGroupCommand({
+              UserPoolId: userPoolId,
+              GroupName: ADMINISTRATORS_GROUP,
+            }),
+          )
+          .catch(() => ({ Users: [] })),
+      ]);
 
-      const emailAttr = response.UserAttributes?.find(
+      const emailAttr = userResponse.UserAttributes?.find(
         (a) => a.Name === 'email',
+      );
+      const adminUsernames = new Set(
+        (adminsResponse.Users ?? []).map((u) => u.Username),
       );
 
       return {
-        id: response.Username,
+        id: userResponse.Username,
         email: emailAttr?.Value || '',
+        isAdmin: adminUsernames.has(userResponse.Username),
       } as User;
     } catch (e: any) {
       if (e.name === 'UserNotFoundException') {
@@ -134,6 +166,23 @@ export class UserService {
       new AdminDeleteUserCommand({
         UserPoolId: userPoolId,
         Username: id,
+      }),
+    );
+  }
+
+  async setAdmin(id: string, isAdmin: boolean): Promise<void> {
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+    await this.findOne(id);
+
+    const Command = isAdmin
+      ? AdminAddUserToGroupCommand
+      : AdminRemoveUserFromGroupCommand;
+
+    await this.cognitoClient.send(
+      new Command({
+        UserPoolId: userPoolId,
+        Username: id,
+        GroupName: ADMINISTRATORS_GROUP,
       }),
     );
   }

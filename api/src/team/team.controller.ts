@@ -7,8 +7,15 @@ import {
   Param,
   Delete,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { TeamService } from './team.service';
 import { Team } from './team.model';
 import { User } from '../user/user.model';
@@ -16,9 +23,12 @@ import {
   ApiPaginatedResponse,
   PaginatedResponse,
 } from '../utils/pagination.model';
+import { AdminGuard } from '../auth/auth.guard';
 
 @ApiTags('team')
 @Controller('team')
+@UseGuards(AdminGuard)
+@ApiBearerAuth()
 export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 

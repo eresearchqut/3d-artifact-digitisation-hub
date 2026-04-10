@@ -5,4 +5,6 @@ export class User {
   id: string;
   @ApiProperty()
   email: string;
+  @ApiProperty({ required: false })
+  isAdmin?: boolean;
 }

@@ -59,6 +59,8 @@ export const userService = {
   update: (id: string, data: Partial<User>): Promise<User> =>
     request<User>(`/user/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   remove: (id: string): Promise<void> => request<void>(`/user/${id}`, { method: 'DELETE' }),
+  setAdmin: (id: string, isAdmin: boolean): Promise<void> =>
+    request<void>(`/user/${id}/admin`, { method: 'PUT', body: JSON.stringify({ isAdmin }) }),
 };
 
 export const teamService = {

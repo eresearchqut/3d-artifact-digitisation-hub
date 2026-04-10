@@ -19,7 +19,8 @@ A platform that enables the management of 3d digital assets. 100% open source.
   - When an asset is deleted, all DynamoDB items under `ASSET#<id>` are removed (main record, access records, share records), all share access records under each `SHARE#<id>` are removed, and the raw S3 file and viewer files are deleted
 
 - **User** → Represents a user of the platform:
-  - Users are managed in Cognito; each user has an `id` (Cognito username) and an `email`
+  - Users are managed in Cognito; each user has an `id` (Cognito username), an `email`, and an `isAdmin` flag
+  - The `isAdmin` flag is `true` when the user is a member of the reserved `administrators` Cognito group
   - Users can be members of teams
   - Users can be granted access to assets and shares
 
@@ -27,6 +28,15 @@ A platform that enables the management of 3d digital assets. 100% open source.
   - Teams are backed by a Cognito group (group name = team name)
   - Each team has a `name` and an optional `description`
   - Teams can be granted access to assets and shares
+  - The `administrators` group name is reserved and cannot be created, renamed, deleted, or assigned to assets or shares via the team API; it is filtered out of all team listing responses
+
+- **Administrator role** → A special role granting elevated privileges:
+  - Assigned to any user who is a member of the `administrators` Cognito group
+  - The `administrators` group is created and managed outside the normal team lifecycle
+  - The JWT payload includes `isAdmin: true` when the `cognito:groups` claim contains `administrators`
+  - Only administrators can access the `/user` and `/team` API endpoints (enforced by `AdminGuard`)
+  - An administrator can grant or revoke the role for any user via `PUT /user/{id}/admin`
+  - The Teams and Users navigation items in the frontend are hidden from non-administrator users
 
 - **Share** → Represents a shareable link to an asset's viewer:
   - Stored in DynamoDB with PK=`ASSET#<assetId>`, SK=`SHARE#<shareId>`
