@@ -12,6 +12,7 @@ import { TeamListPage } from './pages/TeamListPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
 import { AssetListPage } from './pages/AssetListPage';
 import { AssetDetailPage } from './pages/AssetDetailPage';
+import { ShareViewerPage } from './pages/ShareViewerPage';
 import { setBaseUrl } from './services/api.service';
 
 const queryClient: QueryClient = new QueryClient();
@@ -98,25 +99,33 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Authenticator hideSignUp services={services}>
-        {({ signOut, user }) => (
-          <Layout onSignOut={signOut}>
-            <Routes>
-              <Route path="/" element={
-                <Box spaceY={4}>
-                  <Heading size="3xl">Welcome, {user?.username}</Heading>
-                  <p style={{ color: "gray" }}>Select a resource from the sidebar to begin management.</p>
-                </Box>
-              } />
-              <Route path="/team" element={<TeamListPage />} />
-              <Route path="/team/:id" element={<TeamDetailPage />} />
-              <Route path="/user" element={<UserListPage />} />
-              <Route path="/asset" element={<AssetListPage />} />
-              <Route path="/asset/:id" element={<AssetDetailPage />} />
-            </Routes>
-          </Layout>
-        )}
-      </Authenticator>
+      <Routes>
+        {/* Public route — accessible without authentication */}
+        <Route path="/share/:shareId" element={<ShareViewerPage />} />
+
+        {/* All other routes require authentication */}
+        <Route path="/*" element={
+          <Authenticator hideSignUp services={services}>
+            {({ signOut, user }) => (
+              <Layout onSignOut={signOut}>
+                <Routes>
+                  <Route path="/" element={
+                    <Box spaceY={4}>
+                      <Heading size="3xl">Welcome, {user?.username}</Heading>
+                      <p style={{ color: "gray" }}>Select a resource from the sidebar to begin management.</p>
+                    </Box>
+                  } />
+                  <Route path="/team" element={<TeamListPage />} />
+                  <Route path="/team/:id" element={<TeamDetailPage />} />
+                  <Route path="/user" element={<UserListPage />} />
+                  <Route path="/asset" element={<AssetListPage />} />
+                  <Route path="/asset/:id" element={<AssetDetailPage />} />
+                </Routes>
+              </Layout>
+            )}
+          </Authenticator>
+        } />
+      </Routes>
     </QueryClientProvider>
   );
 }

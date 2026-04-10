@@ -18,7 +18,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       : `https://cognito-idp.${region}.amazonaws.com/${userPoolId}`;
 
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      // Accept the token from either the Authorization header (normal API calls)
+      // or a `?token=` query parameter (used by the share viewer iframe).
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        ExtractJwt.fromUrlQueryParameter('token'),
+      ]),
       ignoreExpiration: false,
       // Cognito local emulator hardcodes iss as localhost:9229 regardless of mapped port.
       // Skip issuer validation in local dev; in production the issuer is stable.
