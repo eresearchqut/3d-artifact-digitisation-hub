@@ -93,6 +93,14 @@ export class InfraStack extends cdk.Stack {
       },
     });
 
+    // Reserved group that confers the administrator role.
+    // Members of this group have full access to the user and team management APIs.
+    new cognito.CfnUserPoolGroup(this, 'AdministratorsGroup', {
+      userPoolId: userPool.userPoolId,
+      groupName: 'administrators',
+      description: 'Platform administrators with elevated privileges',
+    });
+
     // Shared execution role for background processor Lambdas (upload-listener, splat-transform)
     // — mirrors: iam create-role in init-local-aws.sh
     const lambdaRole = new iam.Role(this, 'LambdaExecutionRole', {

@@ -211,6 +211,23 @@ aws cognito-idp admin-set-user-password \
   --permanent \
   --region us-east-1 > /dev/null 2>&1 || true
 
+# Create the reserved administrators group and add the bootstrap admin user to it
+echo "Creating administrators Cognito group..."
+aws cognito-idp create-group \
+  --endpoint-url http://cognito-local:9229 \
+  --user-pool-id "$POOL_ID" \
+  --group-name "administrators" \
+  --description "Platform administrators with elevated privileges" \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+echo "Adding $ADMIN_USER to administrators group..."
+aws cognito-idp admin-add-user-to-group \
+  --endpoint-url http://cognito-local:9229 \
+  --user-pool-id "$POOL_ID" \
+  --username "$ADMIN_USER" \
+  --group-name "administrators" \
+  --region us-east-1 > /dev/null 2>&1 || true
+
 echo "--------------------------------------------------------"
 echo "Cognito Admin User created!"
 echo "Username: $ADMIN_USER"
