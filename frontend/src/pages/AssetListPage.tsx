@@ -154,7 +154,7 @@ export const AssetListPage: React.FC = () => {
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setViewerAsset(asset)}>
             <Globe />
-            View
+            Viewer
           </Button>
           <Button
             variant="ghost"

@@ -28,7 +28,7 @@ export function DataTable<T>({
         <Table.Header>
           <Table.Row>
             {columns.map((col, idx) => (
-              <Table.ColumnHeader key={String(col.key) + idx}>
+              <Table.ColumnHeader key={String(col.key) + idx} className={col.headerClassName}>
                 {col.header}
               </Table.ColumnHeader>
             ))}
@@ -45,7 +45,7 @@ export function DataTable<T>({
             data.map((row) => (
               <Table.Row key={keyExtractor(row)}>
                 {columns.map((col, idx) => (
-                  <Table.Cell key={String(col.key) + idx}>
+                  <Table.Cell key={String(col.key) + idx} className={col.cellClassName}>
                     {col.render ? col.render(row) : String(row[col.key as keyof T] ?? '')}
                   </Table.Cell>
                 ))}
