@@ -290,10 +290,11 @@ export const UserListPage: React.FC = () => {
                   </HStack>
                   <Checkbox.Root
                     checked={requireReset}
-                    onCheckedChange={(details) => setRequireReset(!!details.checked)}
+                    onCheckedChange={(details: { checked: boolean | 'indeterminate' }) => setRequireReset(!!details.checked)}
                   >
                     <Checkbox.HiddenInput />
                     <Checkbox.Control />
+                    {/* @ts-ignore */}
                     <Checkbox.Label>Require password reset on next login</Checkbox.Label>
                   </Checkbox.Root>
                 </Stack>
