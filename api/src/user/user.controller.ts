@@ -9,6 +9,7 @@ import {
   Query,
   Put,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -80,11 +81,16 @@ export class UserController {
     summary: 'Grant or revoke the administrator role for a user',
   })
   @ApiResponse({ status: 200, description: 'Admin role updated' })
+  @ApiResponse({
+    status: 403,
+    description: 'Cannot remove your own admin role',
+  })
   @ApiResponse({ status: 404, description: 'User not found' })
   setAdmin(
     @Param('id') id: string,
     @Body() body: { isAdmin: boolean },
+    @Req() req: Request & { user: { sub: string } },
   ): Promise<void> {
-    return this.userService.setAdmin(id, body.isAdmin);
+    return this.userService.setAdmin(id, body.isAdmin, req.user.sub);
   }
 }

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { userService } from '../services/api.service';
 import { Plus, Trash2, Mail, ShieldCheck, ShieldOff } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
@@ -7,6 +8,7 @@ import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Input } from 
 
 interface User {
   id: string;
+  sub?: string;
   email: string;
   isAdmin?: boolean;
 }
@@ -15,6 +17,16 @@ export const UserListPage: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createEmail, setCreateEmail] = useState('');
+  const [currentSub, setCurrentSub] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAuthSession()
+      .then((session) => {
+        const sub = session.tokens?.idToken?.payload?.['sub'] as string | undefined;
+        if (sub) setCurrentSub(sub);
+      })
+      .catch(() => {});
+  }, []);
 
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
@@ -104,16 +116,19 @@ export const UserListPage: React.FC = () => {
       cellClassName: 'text-right',
       render: (user) => (
         <HStack justify="flex-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            colorPalette={user.isAdmin ? 'gray' : 'purple'}
-            onClick={() => setAdminMutation.mutate({ id: user.id, isAdmin: !user.isAdmin })}
-            title={user.isAdmin ? 'Remove admin role' : 'Grant admin role'}
-          >
-            {user.isAdmin ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
-            {user.isAdmin ? 'Remove Admin' : 'Make Admin'}
-          </Button>
+          {/* Hide the admin toggle entirely for the current user's own row */}
+          {user.sub !== currentSub && (
+            <Button
+              variant="ghost"
+              size="sm"
+              colorPalette={user.isAdmin ? 'gray' : 'purple'}
+              onClick={() => setAdminMutation.mutate({ id: user.id, isAdmin: !user.isAdmin })}
+              title={user.isAdmin ? 'Remove admin role' : 'Grant admin role'}
+            >
+              {user.isAdmin ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+              {user.isAdmin ? 'Remove Admin' : 'Make Admin'}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"

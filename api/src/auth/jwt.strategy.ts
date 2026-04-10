@@ -46,7 +46,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!username) {
       throw new UnauthorizedException('Invalid token: missing email claim');
     }
+    const sub = payload['sub'] as string;
     const groups = (payload['cognito:groups'] as string[] | undefined) ?? [];
-    return { username, isAdmin: groups.includes(ADMINISTRATORS_GROUP) };
+    return { username, sub, isAdmin: groups.includes(ADMINISTRATORS_GROUP) };
   }
 }

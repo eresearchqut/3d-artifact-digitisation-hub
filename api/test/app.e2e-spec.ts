@@ -9,6 +9,8 @@ import {
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
   InitiateAuthCommand,
+  CreateGroupCommand,
+  AdminAddUserToGroupCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import {
   DynamoDBClient,
@@ -30,8 +32,11 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
   let userPoolId: string;
   let userPoolClientId: string;
   let testIdToken: string;
+  let nonAdminIdToken: string;
   const testUserEmail = 'e2e-upload@example.com';
   const testUserPassword = 'TestPass123!';
+  const nonAdminEmail = 'e2e-nonadmin@example.com';
+  const nonAdminPassword = 'TestPass123!';
   const tableName = 'test-table';
 
   jest.setTimeout(180000); // Docker can be slow
@@ -107,6 +112,23 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       }),
     );
 
+    // Create the administrators group and add testUserEmail to it so the token
+    // carries cognito:groups = ['administrators'] → isAdmin = true.
+    await tempCognitoClient.send(
+      new CreateGroupCommand({
+        UserPoolId: userPoolId,
+        GroupName: 'administrators',
+      }),
+    );
+
+    await tempCognitoClient.send(
+      new AdminAddUserToGroupCommand({
+        UserPoolId: userPoolId,
+        Username: testUserEmail,
+        GroupName: 'administrators',
+      }),
+    );
+
     // Obtain an ID token for use in authenticated tests
     const authResult = await tempCognitoClient.send(
       new InitiateAuthCommand({
@@ -119,6 +141,41 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       }),
     );
     testIdToken = authResult.AuthenticationResult?.IdToken ?? '';
+
+    // Create a non-admin user for permission boundary tests
+    await tempCognitoClient.send(
+      new AdminCreateUserCommand({
+        UserPoolId: userPoolId,
+        Username: nonAdminEmail,
+        TemporaryPassword: 'Temp1234!',
+        MessageAction: 'SUPPRESS',
+        UserAttributes: [
+          { Name: 'email', Value: nonAdminEmail },
+          { Name: 'email_verified', Value: 'true' },
+        ],
+      }),
+    );
+
+    await tempCognitoClient.send(
+      new AdminSetUserPasswordCommand({
+        UserPoolId: userPoolId,
+        Username: nonAdminEmail,
+        Password: nonAdminPassword,
+        Permanent: true,
+      }),
+    );
+
+    const nonAdminAuthResult = await tempCognitoClient.send(
+      new InitiateAuthCommand({
+        AuthFlow: 'USER_PASSWORD_AUTH',
+        ClientId: userPoolClientId,
+        AuthParameters: {
+          USERNAME: nonAdminEmail,
+          PASSWORD: nonAdminPassword,
+        },
+      }),
+    );
+    nonAdminIdToken = nonAdminAuthResult.AuthenticationResult?.IdToken ?? '';
 
     // Create DynamoDB table
     const tempDynamoClient = new DynamoDBClient({
@@ -209,9 +266,12 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
   });
 
   it('should perform CRUD operations on /team', async () => {
+    const auth = { Authorization: `Bearer ${testIdToken}` };
+
     // 1. Create (POST)
     const createResponse = await request(app.getHttpServer())
       .post('/team')
+      .set(auth)
       .send({ name: 'Test Team' })
       .expect(201);
 
@@ -221,6 +281,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     // 2. Find All (GET)
     const findAllResponse = await request(app.getHttpServer())
       .get('/team')
+      .set(auth)
       .expect(200);
 
     expect(findAllResponse.body.data).toContainEqual(team);
@@ -228,6 +289,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     // 3. Find One (GET :id)
     const findOneResponse = await request(app.getHttpServer())
       .get(`/team/${team.name}`)
+      .set(auth)
       .expect(200);
 
     expect(findOneResponse.body).toEqual(team);
@@ -235,22 +297,32 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     // 4. Update (PATCH :id)
     const updateResponse = await request(app.getHttpServer())
       .patch(`/team/${team.name}`)
+      .set(auth)
       .send({ description: 'Updated Description' })
       .expect(200);
 
     expect(updateResponse.body.description).toBe('Updated Description');
 
     // 5. Remove (DELETE :id)
-    await request(app.getHttpServer()).delete(`/team/${team.name}`).expect(200);
+    await request(app.getHttpServer())
+      .delete(`/team/${team.name}`)
+      .set(auth)
+      .expect(200);
 
     // Verify deletion
-    await request(app.getHttpServer()).get(`/team/${team.name}`).expect(404);
+    await request(app.getHttpServer())
+      .get(`/team/${team.name}`)
+      .set(auth)
+      .expect(404);
   });
 
   it('should add and remove users from a team on /team/:id/user/:userId', async () => {
+    const auth = { Authorization: `Bearer ${testIdToken}` };
+
     // 1. Create Team
     const teamResponse = await request(app.getHttpServer())
       .post('/team')
+      .set(auth)
       .send({ name: 'E2E Test Team' })
       .expect(201);
     const team = teamResponse.body;
@@ -258,6 +330,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     // 2. Create User
     const userResponse = await request(app.getHttpServer())
       .post('/user')
+      .set(auth)
       .send({ email: 'e2e-team-user@example.com' })
       .expect(201);
     const user = userResponse.body;
@@ -265,11 +338,13 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     // 3. Add user to team (POST)
     await request(app.getHttpServer())
       .post(`/team/${team.name}/user/${user.id}`)
+      .set(auth)
       .expect(201);
 
     // 4. List users in team (GET)
     const listUsersResponse = await request(app.getHttpServer())
       .get(`/team/${team.name}/user`)
+      .set(auth)
       .expect(200);
 
     expect(listUsersResponse.body.data).toHaveLength(1);
@@ -281,17 +356,27 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     // 5. Remove user from team (DELETE)
     await request(app.getHttpServer())
       .delete(`/team/${team.name}/user/${user.id}`)
+      .set(auth)
       .expect(200);
 
     // Cleanup
-    await request(app.getHttpServer()).delete(`/team/${team.name}`).expect(200);
-    await request(app.getHttpServer()).delete(`/user/${user.id}`).expect(200);
+    await request(app.getHttpServer())
+      .delete(`/team/${team.name}`)
+      .set(auth)
+      .expect(200);
+    await request(app.getHttpServer())
+      .delete(`/user/${user.id}`)
+      .set(auth)
+      .expect(200);
   });
 
   it('should perform CRUD operations on /user', async () => {
+    const auth = { Authorization: `Bearer ${testIdToken}` };
+
     // 1. Create (POST)
     const createResponse = await request(app.getHttpServer())
       .post('/user')
+      .set(auth)
       .send({ email: 'test@example.com' })
       .expect(201);
 
@@ -302,6 +387,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     // 2. Find All (GET)
     const findAllResponse = await request(app.getHttpServer())
       .get('/user')
+      .set(auth)
       .expect(200);
 
     expect(findAllResponse.body.data).toContainEqual(user);
@@ -309,6 +395,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     // 3. Find One (GET :id)
     const findOneResponse = await request(app.getHttpServer())
       .get(`/user/${user.id}`)
+      .set(auth)
       .expect(200);
 
     expect(findOneResponse.body).toEqual(user);
@@ -316,34 +403,47 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     // 4. Update (PATCH :id)
     const updateResponse = await request(app.getHttpServer())
       .patch(`/user/${user.id}`)
+      .set(auth)
       .send({ email: 'updated@example.com' })
       .expect(200);
 
     expect(updateResponse.body.email).toBe('updated@example.com');
 
     // 5. Remove (DELETE :id)
-    await request(app.getHttpServer()).delete(`/user/${user.id}`).expect(200);
+    await request(app.getHttpServer())
+      .delete(`/user/${user.id}`)
+      .set(auth)
+      .expect(200);
 
     // Verify deletion
-    await request(app.getHttpServer()).get(`/user/${user.id}`).expect(404);
+    await request(app.getHttpServer())
+      .get(`/user/${user.id}`)
+      .set(auth)
+      .expect(404);
   });
 
   it('should be able to add, delete, and add a user again', async () => {
+    const auth = { Authorization: `Bearer ${testIdToken}` };
     const email = 'readd_test@example.com';
 
     // 1. Create User
     const createRes1 = await request(app.getHttpServer())
       .post('/user')
+      .set(auth)
       .send({ email })
       .expect(201);
     const userId1 = createRes1.body.id;
 
     // 2. Delete User
-    await request(app.getHttpServer()).delete(`/user/${userId1}`).expect(200);
+    await request(app.getHttpServer())
+      .delete(`/user/${userId1}`)
+      .set(auth)
+      .expect(200);
 
     // 3. Create User again
     const createRes2 = await request(app.getHttpServer())
       .post('/user')
+      .set(auth)
       .send({ email })
       .expect(201);
     const userId2 = createRes2.body.id;
@@ -351,7 +451,10 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     expect(userId2).toBeDefined();
 
     // Cleanup
-    await request(app.getHttpServer()).delete(`/user/${userId2}`).expect(200);
+    await request(app.getHttpServer())
+      .delete(`/user/${userId2}`)
+      .set(auth)
+      .expect(200);
   });
 
   it('should perform GET and DELETE operations on /asset', async () => {
@@ -617,6 +720,102 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       await request(app.getHttpServer())
         .get('/share/00000000-0000-0000-0000-000000000000/index.html')
         .expect(404);
+    });
+  });
+
+  describe('Admin role', () => {
+    const adminAuth = () => ({ Authorization: `Bearer ${testIdToken}` });
+    const nonAdminAuth = () => ({ Authorization: `Bearer ${nonAdminIdToken}` });
+
+    it('non-admin cannot access GET /user (403)', async () => {
+      await request(app.getHttpServer())
+        .get('/user')
+        .set(nonAdminAuth())
+        .expect(403);
+    });
+
+    it('non-admin cannot access GET /team (403)', async () => {
+      await request(app.getHttpServer())
+        .get('/team')
+        .set(nonAdminAuth())
+        .expect(403);
+    });
+
+    it('unauthenticated request to GET /user returns 401', async () => {
+      await request(app.getHttpServer()).get('/user').expect(401);
+    });
+
+    it('admin can access GET /user and responses include sub', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/user')
+        .set(adminAuth())
+        .expect(200);
+
+      const adminUser = response.body.data.find(
+        (u: any) => u.email === testUserEmail,
+      );
+      expect(adminUser).toBeDefined();
+      expect(adminUser.sub).toBeDefined();
+
+      // sub in the response must match the sub claim in the JWT
+      const jwtPayload = JSON.parse(
+        Buffer.from(testIdToken.split('.')[1], 'base64url').toString(),
+      );
+      expect(adminUser.sub).toBe(jwtPayload.sub);
+    });
+
+    it('admin cannot remove their own admin role (403)', async () => {
+      await request(app.getHttpServer())
+        .put(`/user/${testUserEmail}/admin`)
+        .set(adminAuth())
+        .send({ isAdmin: false })
+        .expect(403);
+    });
+
+    it('admin can grant the admin role to another user', async () => {
+      await request(app.getHttpServer())
+        .put(`/user/${nonAdminEmail}/admin`)
+        .set(adminAuth())
+        .send({ isAdmin: true })
+        .expect(200);
+
+      const userResponse = await request(app.getHttpServer())
+        .get(`/user/${nonAdminEmail}`)
+        .set(adminAuth())
+        .expect(200);
+      expect(userResponse.body.isAdmin).toBe(true);
+    });
+
+    it('admin can revoke the admin role from another user', async () => {
+      await request(app.getHttpServer())
+        .put(`/user/${nonAdminEmail}/admin`)
+        .set(adminAuth())
+        .send({ isAdmin: false })
+        .expect(200);
+
+      const userResponse = await request(app.getHttpServer())
+        .get(`/user/${nonAdminEmail}`)
+        .set(adminAuth())
+        .expect(200);
+      expect(userResponse.body.isAdmin).toBe(false);
+    });
+
+    it('cannot create a team named "administrators" (403)', async () => {
+      await request(app.getHttpServer())
+        .post('/team')
+        .set(adminAuth())
+        .send({ name: 'administrators' })
+        .expect(403);
+    });
+
+    it('GET /team does not include the administrators group', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/team')
+        .set(adminAuth())
+        .expect(200);
+
+      const names: string[] = response.body.data.map((t: any) => t.name);
+      expect(names).not.toContain('administrators');
     });
   });
 });

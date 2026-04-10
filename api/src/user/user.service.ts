@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CognitoIdentityProviderClient,
@@ -38,9 +42,11 @@ export class UserService {
     );
 
     const cognitoUsername = response.User?.Username;
+    const subAttr = response.User?.Attributes?.find((a) => a.Name === 'sub');
 
     return {
       id: cognitoUsername,
+      sub: subAttr?.Value,
       email: user.email,
     } as User;
   }
@@ -77,8 +83,10 @@ export class UserService {
 
     const data: User[] = (usersResponse.Users || []).map((u) => {
       const emailAttr = u.Attributes?.find((a) => a.Name === 'email');
+      const subAttr = u.Attributes?.find((a) => a.Name === 'sub');
       return {
         id: u.Username,
+        sub: subAttr?.Value,
         email: emailAttr?.Value || '',
         isAdmin: adminUsernames.has(u.Username),
       } as User;
@@ -115,12 +123,16 @@ export class UserService {
       const emailAttr = userResponse.UserAttributes?.find(
         (a) => a.Name === 'email',
       );
+      const subAttr = userResponse.UserAttributes?.find(
+        (a) => a.Name === 'sub',
+      );
       const adminUsernames = new Set(
         (adminsResponse.Users ?? []).map((u) => u.Username),
       );
 
       return {
         id: userResponse.Username,
+        sub: subAttr?.Value,
         email: emailAttr?.Value || '',
         isAdmin: adminUsernames.has(userResponse.Username),
       } as User;
@@ -170,9 +182,19 @@ export class UserService {
     );
   }
 
-  async setAdmin(id: string, isAdmin: boolean): Promise<void> {
+  async setAdmin(
+    id: string,
+    isAdmin: boolean,
+    callerSub: string,
+  ): Promise<void> {
+    const targetUser = await this.findOne(id);
+    if (!isAdmin && targetUser.sub === callerSub) {
+      throw new ForbiddenException(
+        'You cannot remove your own administrator role',
+      );
+    }
+
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
-    await this.findOne(id);
 
     const Command = isAdmin
       ? AdminAddUserToGroupCommand

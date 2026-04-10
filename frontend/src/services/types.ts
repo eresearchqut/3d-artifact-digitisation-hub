@@ -16,6 +16,7 @@ export interface Team {
 
 export interface User {
   id: string;
+  sub?: string;
   email: string;
   isAdmin?: boolean;
 }
