@@ -11,10 +11,11 @@ A platform that enables the management of 3d digital assets. 100% open source.
   - Raw uploads are stored at `assets/{asset_id}`
   - A metadata record is stored in DynamoDB capturing the original file metadata and the user who uploaded the asset (`packages/asset-upload-listener`)
   - An asset viewer is generated and stored in S3 under `viewer/{asset_id}` (`packages/asset-splat-transform`)
-  - Asset ownership is represented with the PK of the asset an SK of TEAM#<team_name> or USER#<user_email>
-  - The uploading user is the initial owner
-  - Additional users and teams can be added to the group to grant access, 
-  - When an asset is deleted, all of its associated data is also deleted, including the asset viewer, metadata, and shares
+  - Asset ownership is represented with the PK of the asset and an SK of `USER#<user_email>` or `TEAM#<team_name>`
+  - The uploading user is automatically added as the initial owner
+  - Additional users and teams can be granted access at any time; access can also be revoked at any time with no minimum-owner constraint
+  - The asset listing page displays all assets regardless of ownership
+  - When an asset is deleted, all of its associated data is also deleted, including the asset viewer, metadata, ownership records, and shares
 - **User** → Represents a user of the platform:
   - Users are managed in Cognito
   - Users can be members of teams
@@ -23,22 +24,23 @@ A platform that enables the management of 3d digital assets. 100% open source.
   - Teams are backed by a Cognito group (group name = team ID)
   - Teams can be granted access to assets via asset ownership groups
 - **Share** → Represents a share of an asset:
-  - A share is a unique URL that can be used to access the asset
+  - A share is a unique URL that can be used to access the asset viewer
   - A share has its own uuid
-  - When a share is created, it can have an optional duration e.g. 1 hour, 7 days, 3 months. 
+  - When a share is created, it can have an optional duration e.g. 1 hour, 7 days, 3 months. This is input as a numeric value (1-60) and a duration of minute|hour|day|week|month|year.
+  - A share can be flagged as public
   - Shares can be revoked at any time
   - Shares can be granted to users and teams
   - Shares are represented in with the PK of the asset and the SK of the share
   - Share access is represented with the PK of the share an SK of TEAM#<team_name> or USER#<user_email>
-  - Shares are added to an asset from the AssetListing page
-
+  - Shares are managed from the AssetDetail page
+  - A share can be accessed anonymously if it is public or is an owner of the asset or a member granted to the share AND there is no duration set or a duration is set and the duration has not elapsed based on the share creation date
   
 ## Packaging
 
 Uses NPM workspace to with packages in the following directories
 
 - api: contains the management API and has endpoints for the above model
-- frontend: it contains the management frontend, provides a user interface for uploading and adding mettadata to assets, creating and managing teams, creating and managing users, and provisioning shares for assets.
+- frontend: it contains the management frontend, provides a user interface for uploading and adding metadata to assets, creating and managing teams, creating and managing users, and provisioning shares for assets.
 - infra: aws cdk infrastructure to deploy the application
 
 ### Management API 

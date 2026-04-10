@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { assetService, shareService } from '../services/api.service';
+import { assetService, shareService, userService, teamService } from '../services/api.service';
 import { Share, ShareAccess, AssetAccess } from '../services/types';
 import {
   Box,
@@ -42,6 +42,7 @@ function AccessSection({
   placeholder,
   accessData,
   isLoading,
+  options,
   onAdd,
   onRemove,
 }: {
@@ -50,10 +51,11 @@ function AccessSection({
   placeholder: string;
   accessData: AssetAccess[] | ShareAccess[];
   isLoading: boolean;
+  options: { label: string; value: string }[];
   onAdd: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
-  const [inputVal, setInputVal] = useState('');
+  const [selected, setSelected] = useState('');
 
   const columns: Column<AssetAccess>[] = [
     { key: 'id', header: title },
@@ -82,16 +84,21 @@ function AccessSection({
         <Text fontWeight="semibold">{title}</Text>
       </HStack>
       <HStack>
-        <Input
-          placeholder={placeholder}
-          value={inputVal}
-          onChange={(e) => setInputVal(e.target.value)}
-          size="sm"
-        />
+        <select
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
+          disabled={options.length === 0}
+          style={{ flex: 1, fontSize: '0.875rem', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--chakra-colors-border)', background: 'var(--chakra-colors-bg)', color: 'var(--chakra-colors-fg)' }}
+        >
+          <option value="">{options.length === 0 ? `No ${placeholder} available` : `Select ${placeholder}…`}</option>
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
         <Button
           size="sm"
-          disabled={!inputVal.trim()}
-          onClick={() => { onAdd(inputVal.trim()); setInputVal(''); }}
+          disabled={!selected}
+          onClick={() => { onAdd(selected); setSelected(''); }}
         >
           <Plus /> Add
         </Button>
@@ -111,10 +118,14 @@ function AccessSection({
 function ShareRow({
   assetId,
   share,
+  allUsers,
+  allTeams,
   onRevoke,
 }: {
   assetId: string;
   share: Share;
+  allUsers: { label: string; value: string }[];
+  allTeams: { label: string; value: string }[];
   onRevoke: (id: string) => void;
 }) {
   const qc = useQueryClient();
@@ -189,18 +200,20 @@ function ShareRow({
           <AccessSection
             title="Users"
             icon={<Users size={14} />}
-            placeholder="user@example.com"
+            placeholder="user"
             accessData={userAccess?.data ?? []}
             isLoading={false}
+            options={allUsers.filter((u) => !(userAccess?.data ?? []).some((a) => a.id === u.value))}
             onAdd={(email) => addUserMutation.mutate(email)}
             onRemove={(email) => removeUserMutation.mutate(email)}
           />
           <AccessSection
             title="Teams"
             icon={<Shield size={14} />}
-            placeholder="team-name"
+            placeholder="team"
             accessData={teamAccess?.data ?? []}
             isLoading={false}
+            options={allTeams.filter((t) => !(teamAccess?.data ?? []).some((a) => a.id === t.value))}
             onAdd={(name) => addTeamMutation.mutate(name)}
             onRemove={(name) => removeTeamMutation.mutate(name)}
           />
@@ -262,6 +275,26 @@ export const AssetDetailPage: React.FC = () => {
     mutationFn: (name: string) => assetService.removeTeamAccess(id!, name),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-teams', id] }),
   });
+
+  const { data: allUsersData } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => userService.findAll(100),
+  });
+
+  const { data: allTeamsData } = useQuery({
+    queryKey: ['teams'],
+    queryFn: () => teamService.findAll(100),
+  });
+
+  const allUserOptions = (allUsersData?.data ?? []).map((u) => ({ label: u.email, value: u.email }));
+  const allTeamOptions = (allTeamsData?.data ?? []).map((t) => ({ label: t.name, value: t.name }));
+
+  const availableUserOptions = allUserOptions.filter(
+    (u) => !(userAccess?.data ?? []).some((a) => a.id === u.value),
+  );
+  const availableTeamOptions = allTeamOptions.filter(
+    (t) => !(teamAccess?.data ?? []).some((a) => a.id === t.value),
+  );
 
   const createShareMutation = useMutation({
     mutationFn: () => {
@@ -336,9 +369,10 @@ export const AssetDetailPage: React.FC = () => {
             <AccessSection
               title="Users"
               icon={<Users size={16} />}
-              placeholder="user@example.com"
+              placeholder="user"
               accessData={userAccess?.data ?? []}
               isLoading={false}
+              options={availableUserOptions}
               onAdd={(email) => addUserMutation.mutate(email)}
               onRemove={(email) => removeUserMutation.mutate(email)}
             />
@@ -346,9 +380,10 @@ export const AssetDetailPage: React.FC = () => {
             <AccessSection
               title="Teams"
               icon={<Shield size={16} />}
-              placeholder="team-name"
+              placeholder="team"
               accessData={teamAccess?.data ?? []}
               isLoading={false}
+              options={availableTeamOptions}
               onAdd={(name) => addTeamMutation.mutate(name)}
               onRemove={(name) => removeTeamMutation.mutate(name)}
             />
@@ -372,6 +407,8 @@ export const AssetDetailPage: React.FC = () => {
                 key={share.id}
                 assetId={id!}
                 share={share}
+                allUsers={allUserOptions}
+                allTeams={allTeamOptions}
                 onRevoke={(shareId) => revokeShareMutation.mutate(shareId)}
               />
             ))}
