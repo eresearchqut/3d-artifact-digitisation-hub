@@ -191,15 +191,17 @@ function ShareRow({
           </Text>
         </Stack>
         <HStack>
-          <Button variant="ghost" size="sm" onClick={() => setExpanded((v) => !v)}>
-            <Users /> {expanded ? 'Hide Access' : 'Manage Access'}
-          </Button>
+          {!share.isPublic && (
+            <Button variant="ghost" size="sm" onClick={() => setExpanded((v) => !v)}>
+              <Users /> {expanded ? 'Hide Access' : 'Manage Access'}
+            </Button>
+          )}
           <Button variant="ghost" size="sm" colorPalette="red" onClick={() => onRevoke(share.id)}>
             <Trash2 /> Revoke
           </Button>
         </HStack>
       </Flex>
-      {expanded && (
+      {expanded && !share.isPublic && (
         <Stack gap={4} pt={2}>
           <Separator />
           <AccessSection
