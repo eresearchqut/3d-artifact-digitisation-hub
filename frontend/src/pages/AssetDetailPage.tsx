@@ -18,6 +18,7 @@ import {
   Dialog,
 } from '@chakra-ui/react';
 import { Switch } from '../components/ui/switch';
+import { toaster } from '../components/ui/toaster';
 import { ArrowLeft, Plus, Trash2, Link, Users, Shield, Copy } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 
@@ -150,18 +151,22 @@ function ShareRow({
   const addUserMutation = useMutation({
     mutationFn: (email: string) => shareService.addUserAccess(assetId, share.id, email),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['share-users', share.id] }),
+    onError: (err: Error) => { console.error('[share] addUser failed', err); toaster.create({ type: 'error', title: 'Failed to add user', description: err.message }); },
   });
   const removeUserMutation = useMutation({
     mutationFn: (email: string) => shareService.removeUserAccess(assetId, share.id, email),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['share-users', share.id] }),
+    onError: (err: Error) => { console.error('[share] removeUser failed', err); toaster.create({ type: 'error', title: 'Failed to remove user', description: err.message }); },
   });
   const addTeamMutation = useMutation({
     mutationFn: (name: string) => shareService.addTeamAccess(assetId, share.id, name),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['share-teams', share.id] }),
+    onError: (err: Error) => { console.error('[share] addTeam failed', err); toaster.create({ type: 'error', title: 'Failed to add team', description: err.message }); },
   });
   const removeTeamMutation = useMutation({
     mutationFn: (name: string) => shareService.removeTeamAccess(assetId, share.id, name),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['share-teams', share.id] }),
+    onError: (err: Error) => { console.error('[share] removeTeam failed', err); toaster.create({ type: 'error', title: 'Failed to remove team', description: err.message }); },
   });
 
   const isExpired = share.expiresAt && new Date(share.expiresAt) < new Date();
@@ -280,18 +285,22 @@ export const AssetDetailPage: React.FC = () => {
   const addUserMutation = useMutation({
     mutationFn: (email: string) => assetService.addUserAccess(id!, email),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-users', id] }),
+    onError: (err: Error) => { console.error('[asset] addUser failed', err); toaster.create({ type: 'error', title: 'Failed to add user', description: err.message }); },
   });
   const removeUserMutation = useMutation({
     mutationFn: (email: string) => assetService.removeUserAccess(id!, email),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-users', id] }),
+    onError: (err: Error) => { console.error('[asset] removeUser failed', err); toaster.create({ type: 'error', title: 'Failed to remove user', description: err.message }); },
   });
   const addTeamMutation = useMutation({
     mutationFn: (name: string) => assetService.addTeamAccess(id!, name),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-teams', id] }),
+    onError: (err: Error) => { console.error('[asset] addTeam failed', err); toaster.create({ type: 'error', title: 'Failed to add team', description: err.message }); },
   });
   const removeTeamMutation = useMutation({
     mutationFn: (name: string) => assetService.removeTeamAccess(id!, name),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-teams', id] }),
+    onError: (err: Error) => { console.error('[asset] removeTeam failed', err); toaster.create({ type: 'error', title: 'Failed to remove team', description: err.message }); },
   });
 
   const { data: allUsersData } = useQuery({
@@ -321,11 +330,20 @@ export const AssetDetailPage: React.FC = () => {
         ...(durationValue && !isNaN(parsed) ? { durationValue: parsed, durationUnit } : {}),
         isPublic,
       });
+      console.log('[createShare] created share:', share, 'pendingUsers:', pendingUsers, 'pendingTeams:', pendingTeams, 'isPublic:', isPublic);
       if (!isPublic && (pendingUsers.length > 0 || pendingTeams.length > 0)) {
+        console.log('[createShare] adding access, share.id:', share.id);
         await Promise.all([
-          ...pendingUsers.map((email) => shareService.addUserAccess(id!, share.id, email)),
-          ...pendingTeams.map((name) => shareService.addTeamAccess(id!, share.id, name)),
+          ...pendingUsers.map((email) => {
+            console.log('[createShare] addUserAccess', id, share.id, email);
+            return shareService.addUserAccess(id!, share.id, email);
+          }),
+          ...pendingTeams.map((name) => {
+            console.log('[createShare] addTeamAccess', id, share.id, name);
+            return shareService.addTeamAccess(id!, share.id, name);
+          }),
         ]);
+        console.log('[createShare] access grants complete');
       }
       return share;
     },
@@ -340,11 +358,16 @@ export const AssetDetailPage: React.FC = () => {
       setPendingUserSelect('');
       setPendingTeamSelect('');
     },
+    onError: (err: Error) => {
+      console.error('[createShare] failed:', err);
+      toaster.create({ type: 'error', title: 'Failed to create share', description: err.message });
+    },
   });
 
   const revokeShareMutation = useMutation({
     mutationFn: (shareId: string) => shareService.remove(id!, shareId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-shares', id] }),
+    onError: (err: Error) => { console.error('[revokeShare] failed:', err); toaster.create({ type: 'error', title: 'Failed to revoke share', description: err.message }); },
   });
 
   if (isLoading) return <Box py={10} textAlign="center" color="fg.muted">Loading…</Box>;
@@ -593,6 +616,11 @@ export const AssetDetailPage: React.FC = () => {
               </Stack>
             </Dialog.Body>
             <Dialog.Footer>
+              {createShareMutation.error && (
+                <Text fontSize="sm" color="red.500" flex="1">
+                  {(createShareMutation.error as Error).message}
+                </Text>
+              )}
               <Button variant="outline" onClick={() => setIsCreateShareOpen(false)}>Cancel</Button>
               <Button
                 colorPalette="blue"

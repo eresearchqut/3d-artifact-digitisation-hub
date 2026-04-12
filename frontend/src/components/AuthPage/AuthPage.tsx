@@ -28,10 +28,12 @@ interface AuthPageProps {
   subtitle?: string;
   /** Called after successful sign-in (useful for callback-based flows like ShareViewerPage) */
   onAuthenticated?: () => void;
+  /** Initial screen to display — useful for Storybook and testing */
+  initialScreen?: Screen;
 }
 
-export function AuthPage({ subtitle = 'Management Console', onAuthenticated }: AuthPageProps) {
-  const [screen, setScreen] = useState<Screen>('signIn');
+export function AuthPage({ subtitle = 'Management Console', onAuthenticated, initialScreen = 'signIn' }: AuthPageProps) {
+  const [screen, setScreen] = useState<Screen>(initialScreen);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
