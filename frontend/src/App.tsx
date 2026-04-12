@@ -13,6 +13,7 @@ import { TeamDetailPage } from './pages/TeamDetailPage';
 import { AssetListPage } from './pages/AssetListPage';
 import { AssetDetailPage } from './pages/AssetDetailPage';
 import { ShareViewerPage } from './pages/ShareViewerPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { setBaseUrl } from './services/api.service';
 
 const queryClient: QueryClient = new QueryClient();
@@ -107,14 +108,9 @@ function App() {
         <Route path="/*" element={
           <Authenticator hideSignUp services={services}>
             {({ signOut, user }) => (
-              <Layout onSignOut={signOut}>
+              <Layout onSignOut={signOut} email={user?.signInDetails?.loginId}>
                 <Routes>
-                  <Route path="/" element={
-                    <Box spaceY={4}>
-                      <Heading size="3xl">Welcome, {user?.username}</Heading>
-                      <p style={{ color: "gray" }}>Select a resource from the sidebar to begin management.</p>
-                    </Box>
-                  } />
+                  <Route path="/" element={<DashboardPage />} />
                   <Route path="/team" element={<TeamListPage />} />
                   <Route path="/team/:id" element={<TeamDetailPage />} />
                   <Route path="/user" element={<UserListPage />} />

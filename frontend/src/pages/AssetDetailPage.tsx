@@ -248,6 +248,10 @@ export const AssetDetailPage: React.FC = () => {
   const [durationValue, setDurationValue] = useState<string>('');
   const [durationUnit, setDurationUnit] = useState<DurationUnit>('day');
   const [isPublic, setIsPublic] = useState(false);
+  const [pendingUsers, setPendingUsers] = useState<string[]>([]);
+  const [pendingTeams, setPendingTeams] = useState<string[]>([]);
+  const [pendingUserSelect, setPendingUserSelect] = useState('');
+  const [pendingTeamSelect, setPendingTeamSelect] = useState('');
 
   const { data: asset, isLoading } = useQuery({
     queryKey: ['asset', id],
@@ -311,12 +315,19 @@ export const AssetDetailPage: React.FC = () => {
   );
 
   const createShareMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const parsed = parseInt(durationValue, 10);
-      return shareService.create(id!, {
+      const share = await shareService.create(id!, {
         ...(durationValue && !isNaN(parsed) ? { durationValue: parsed, durationUnit } : {}),
         isPublic,
       });
+      if (!isPublic && (pendingUsers.length > 0 || pendingTeams.length > 0)) {
+        await Promise.all([
+          ...pendingUsers.map((email) => shareService.addUserAccess(id!, share.id, email)),
+          ...pendingTeams.map((name) => shareService.addTeamAccess(id!, share.id, name)),
+        ]);
+      }
+      return share;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['asset-shares', id] });
@@ -324,6 +335,10 @@ export const AssetDetailPage: React.FC = () => {
       setDurationValue('');
       setDurationUnit('day');
       setIsPublic(false);
+      setPendingUsers([]);
+      setPendingTeams([]);
+      setPendingUserSelect('');
+      setPendingTeamSelect('');
     },
   });
 
@@ -475,16 +490,106 @@ export const AssetDetailPage: React.FC = () => {
                   </HStack>
                   <Text fontSize="xs" color="fg.muted">Leave blank for no expiry.</Text>
                 </Stack>
-                <HStack justify="space-between" align="center">
-                  <Stack gap={0}>
-                    <Text fontSize="sm" fontWeight="medium">Public</Text>
-                    <Text fontSize="xs" color="fg.muted">Allow anonymous access via the share link.</Text>
-                  </Stack>
+                <HStack align="center" gap={3}>
                   <Switch
                     checked={isPublic}
                     onCheckedChange={({ checked }: { checked: boolean }) => setIsPublic(checked)}
                   />
+                  <Stack gap={0}>
+                    <Text fontSize="sm" fontWeight="medium">{isPublic ? 'Public' : 'Private'}</Text>
+                    <Text fontSize="xs" color="fg.muted">
+                      {isPublic
+                        ? 'Allow anonymous access via the share link.'
+                        : 'Only the following users and teams can access the share.'}
+                    </Text>
+                  </Stack>
                 </HStack>
+
+                {!isPublic && (
+                  <Stack gap={4} pt={1}>
+                    <Separator />
+                    {/* Users */}
+                    <Stack gap={2}>
+                      <HStack>
+                        <Users size={14} />
+                        <Text fontSize="sm" fontWeight="medium">Users</Text>
+                      </HStack>
+                      <HStack>
+                        <select
+                          value={pendingUserSelect}
+                          onChange={(e) => setPendingUserSelect(e.target.value)}
+                          disabled={allUserOptions.filter((u) => !pendingUsers.includes(u.value)).length === 0}
+                          style={{ flex: 1, fontSize: '0.875rem', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--chakra-colors-border)', background: 'var(--chakra-colors-bg)', color: 'var(--chakra-colors-fg)' }}
+                        >
+                          <option value="">Select user…</option>
+                          {allUserOptions
+                            .filter((u) => !pendingUsers.includes(u.value))
+                            .map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                        <Button
+                          size="sm"
+                          colorPalette="blue"
+                          disabled={!pendingUserSelect}
+                          onClick={() => { setPendingUsers((prev) => [...prev, pendingUserSelect]); setPendingUserSelect(''); }}
+                        >
+                          <Plus /> Add
+                        </Button>
+                      </HStack>
+                      {pendingUsers.length > 0 && (
+                        <Stack gap={1}>
+                          {pendingUsers.map((email) => (
+                            <HStack key={email} justify="space-between" px={2} py={1} borderWidth="1px" borderRadius="md" bg="bg.subtle">
+                              <Text fontSize="sm">{email}</Text>
+                              <Button variant="ghost" size="xs" colorPalette="red" onClick={() => setPendingUsers((prev) => prev.filter((e) => e !== email))}>
+                                <Trash2 size={12} />
+                              </Button>
+                            </HStack>
+                          ))}
+                        </Stack>
+                      )}
+                    </Stack>
+                    {/* Teams */}
+                    <Stack gap={2}>
+                      <HStack>
+                        <Shield size={14} />
+                        <Text fontSize="sm" fontWeight="medium">Teams</Text>
+                      </HStack>
+                      <HStack>
+                        <select
+                          value={pendingTeamSelect}
+                          onChange={(e) => setPendingTeamSelect(e.target.value)}
+                          disabled={allTeamOptions.filter((t) => !pendingTeams.includes(t.value)).length === 0}
+                          style={{ flex: 1, fontSize: '0.875rem', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--chakra-colors-border)', background: 'var(--chakra-colors-bg)', color: 'var(--chakra-colors-fg)' }}
+                        >
+                          <option value="">Select team…</option>
+                          {allTeamOptions
+                            .filter((t) => !pendingTeams.includes(t.value))
+                            .map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                        <Button
+                          size="sm"
+                          colorPalette="blue"
+                          disabled={!pendingTeamSelect}
+                          onClick={() => { setPendingTeams((prev) => [...prev, pendingTeamSelect]); setPendingTeamSelect(''); }}
+                        >
+                          <Plus /> Add
+                        </Button>
+                      </HStack>
+                      {pendingTeams.length > 0 && (
+                        <Stack gap={1}>
+                          {pendingTeams.map((name) => (
+                            <HStack key={name} justify="space-between" px={2} py={1} borderWidth="1px" borderRadius="md" bg="bg.subtle">
+                              <Text fontSize="sm">{name}</Text>
+                              <Button variant="ghost" size="xs" colorPalette="red" onClick={() => setPendingTeams((prev) => prev.filter((n) => n !== name))}>
+                                <Trash2 size={12} />
+                              </Button>
+                            </HStack>
+                          ))}
+                        </Stack>
+                      )}
+                    </Stack>
+                  </Stack>
+                )}
               </Stack>
             </Dialog.Body>
             <Dialog.Footer>

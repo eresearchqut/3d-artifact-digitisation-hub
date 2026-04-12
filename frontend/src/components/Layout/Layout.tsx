@@ -9,9 +9,18 @@ import { useIsAdmin } from '../../hooks/useIsAdmin';
 interface LayoutProps {
   children: React.ReactNode;
   onSignOut?: () => void;
+  email?: string;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, onSignOut }) => {
+function getInitials(email?: string): string {
+  if (!email) return '?';
+  const local = email.split('@')[0];
+  const parts = local.split(/[._-]/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return local.slice(0, 2).toUpperCase();
+}
+
+export const Layout: React.FC<LayoutProps> = ({ children, onSignOut, email }) => {
   const isAdmin = useIsAdmin();
 
   const navItems = [
@@ -106,23 +115,32 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSignOut }) => {
               Management Console
             </Heading>
             <HStack gap="4">
+              <HStack gap="2">
+                <Flex
+                  h="8"
+                  w="8"
+                  borderRadius="full"
+                  bg={{ base: 'blue.100', _dark: 'blue.900' }}
+                  align="center"
+                  justify="center"
+                  color={{ base: 'blue.600', _dark: 'blue.400' }}
+                  fontWeight="bold"
+                  fontSize="xs"
+                  flexShrink={0}
+                >
+                  {getInitials(email)}
+                </Flex>
+                {email && (
+                  <Text fontSize="sm" color={{ base: 'gray.600', _dark: 'gray.400' }} maxW="200px" truncate>
+                    {email}
+                  </Text>
+                )}
+              </HStack>
               <Text fontSize="sm" color={{ base: 'gray.500', _dark: 'gray.400' }}>
                 v1.0.0
               </Text>
               <ColorModeButton />
-              <Flex
-                h="8"
-                w="8"
-                borderRadius="full"
-                bg={{ base: 'blue.100', _dark: 'blue.900' }}
-                align="center"
-                justify="center"
-                color={{ base: 'blue.600', _dark: 'blue.400' }}
-                fontWeight="bold"
-              >
-                JS
-              </Flex>
-            </HStack>
+              </HStack>
           </Flex>
         </Box>
         <Box p="8" flex="1">
