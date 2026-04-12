@@ -258,6 +258,94 @@ if [ -n "$ID_TOKEN" ]; then
   echo "--------------------------------------------------------"
 fi
 
+# ── Sample users ────────────────────────────────────────────────────────────
+echo "Creating sample Cognito users..."
+for SAMPLE_USER in \
+  "alice.johnson@local.test" \
+  "bob.smith@local.test" \
+  "carol.white@local.test" \
+  "david.lee@local.test" \
+  "eve.martin@local.test"
+do
+  SAMPLE_PASS=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*()' </dev/urandom | head -c 16)
+  aws cognito-idp admin-create-user \
+    --endpoint-url http://cognito-local:9229 \
+    --user-pool-id "$POOL_ID" \
+    --username "$SAMPLE_USER" \
+    --user-attributes Name=email,Value="$SAMPLE_USER" Name=email_verified,Value=true \
+    --message-action SUPPRESS \
+    --region us-east-1 > /dev/null 2>&1 || true
+  aws cognito-idp admin-set-user-password \
+    --endpoint-url http://cognito-local:9229 \
+    --user-pool-id "$POOL_ID" \
+    --username "$SAMPLE_USER" \
+    --password "$SAMPLE_PASS" \
+    --permanent \
+    --region us-east-1 > /dev/null 2>&1 || true
+  echo "  User: $SAMPLE_USER  (password: $SAMPLE_PASS)"
+done
+
+# ── Sample teams (Cognito groups) ───────────────────────────────────────────
+echo "Creating sample teams (Cognito groups)..."
+aws cognito-idp create-group \
+  --endpoint-url http://cognito-local:9229 \
+  --user-pool-id "$POOL_ID" \
+  --group-name "engineering" \
+  --description "Engineering team responsible for technical development" \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+aws cognito-idp create-group \
+  --endpoint-url http://cognito-local:9229 \
+  --user-pool-id "$POOL_ID" \
+  --group-name "research" \
+  --description "Research team exploring new digitisation techniques" \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+aws cognito-idp create-group \
+  --endpoint-url http://cognito-local:9229 \
+  --user-pool-id "$POOL_ID" \
+  --group-name "collections" \
+  --description "Collections team managing artifact catalogues" \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+aws cognito-idp create-group \
+  --endpoint-url http://cognito-local:9229 \
+  --user-pool-id "$POOL_ID" \
+  --group-name "outreach" \
+  --description "Public outreach and education team" \
+  --region us-east-1 > /dev/null 2>&1 || true
+
+echo "  Groups: engineering, research, collections, outreach"
+
+# ── Team memberships ─────────────────────────────────────────────────────────
+echo "Adding users to groups..."
+add_to_group() {
+  aws cognito-idp admin-add-user-to-group \
+    --endpoint-url http://cognito-local:9229 \
+    --user-pool-id "$POOL_ID" \
+    --username "$2" \
+    --group-name "$1" \
+    --region us-east-1 > /dev/null 2>&1 || true
+  echo "  $2 -> $1"
+}
+
+add_to_group "engineering" "alice.johnson@local.test"
+add_to_group "engineering" "bob.smith@local.test"
+add_to_group "engineering" "david.lee@local.test"
+add_to_group "engineering" "$ADMIN_USER"
+add_to_group "research"    "carol.white@local.test"
+add_to_group "research"    "alice.johnson@local.test"
+add_to_group "collections" "eve.martin@local.test"
+add_to_group "collections" "carol.white@local.test"
+add_to_group "outreach"    "eve.martin@local.test"
+add_to_group "outreach"    "bob.smith@local.test"
+
+echo "--------------------------------------------------------"
+echo "Sample data created!"
+echo "Users: alice.johnson, bob.smith, carol.white, david.lee, eve.martin @local.test"
+echo "Teams: engineering, research, collections, outreach"
+echo "--------------------------------------------------------"
+
 echo "Writing environment variables to .development.env on the host..."
 cat <<EOF > /workspace/.env.local
 USER_POOL_ID=$POOL_ID
