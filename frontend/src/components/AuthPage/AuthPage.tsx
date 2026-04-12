@@ -11,9 +11,11 @@ import {
   Button,
   Field,
   Flex,
+  Group,
   Heading,
   HStack,
   Input,
+  InputAddon,
   Stack,
   Text,
 } from '@chakra-ui/react';
@@ -205,26 +207,26 @@ export function AuthPage({ subtitle = 'Management Console', onAuthenticated }: A
                     </Button>
                   </HStack>
                 </Field.Label>
-                <HStack gap={2}>
+                <Group attached w="full">
                   <Input
                     type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={password}
                     onChange={e => { setPassword(e.target.value); clearError(); }}
                     required
-                    flex={1}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowPassword(v => !v)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    px={3}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </Button>
-                </HStack>
+                  <InputAddon>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowPassword(v => !v)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </Button>
+                  </InputAddon>
+                </Group>
               </Field.Root>
               <Button type="submit" colorPalette="blue" w="full" loading={isLoading}>
                 Sign In
@@ -246,19 +248,20 @@ export function AuthPage({ subtitle = 'Management Console', onAuthenticated }: A
               <Field.Root>
                 {/* @ts-ignore */}
                 <Field.Label>New Password</Field.Label>
-                <HStack gap={2}>
+                <Group attached w="full">
                   <Input
                     type={showNewPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={newPassword}
                     onChange={e => { setNewPassword(e.target.value); clearError(); }}
                     required
-                    flex={1}
                   />
-                  <Button type="button" variant="outline" size="sm" onClick={() => setShowNewPassword(v => !v)} px={3}>
-                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </Button>
-                </HStack>
+                  <InputAddon>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowNewPassword(v => !v)}>
+                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </Button>
+                  </InputAddon>
+                </Group>
               </Field.Root>
               <Field.Root>
                 {/* @ts-ignore */}
@@ -336,19 +339,20 @@ export function AuthPage({ subtitle = 'Management Console', onAuthenticated }: A
               <Field.Root>
                 {/* @ts-ignore */}
                 <Field.Label>New Password</Field.Label>
-                <HStack gap={2}>
+                <Group attached w="full">
                   <Input
                     type={showNewPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={newPassword}
                     onChange={e => { setNewPassword(e.target.value); clearError(); }}
                     required
-                    flex={1}
                   />
-                  <Button type="button" variant="outline" size="sm" onClick={() => setShowNewPassword(v => !v)} px={3}>
-                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </Button>
-                </HStack>
+                  <InputAddon>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowNewPassword(v => !v)}>
+                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </Button>
+                  </InputAddon>
+                </Group>
               </Field.Root>
               <Field.Root>
                 {/* @ts-ignore */}
