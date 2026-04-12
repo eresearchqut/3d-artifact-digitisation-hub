@@ -1,52 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { fetchAuthSession, signIn } from 'aws-amplify/auth';
-import { Authenticator } from '@aws-amplify/ui-react';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { Box, Flex, Heading, Spinner, Text } from '@chakra-ui/react';
 import { getBaseUrl } from '../services/api.service';
+import { AuthPage } from '../components/AuthPage/AuthPage';
 
 type Status = 'loading' | 'granted' | 'login' | 'forbidden' | 'notfound' | 'error';
 
-// Sub-component: waits until the user is authenticated then calls onAuthenticated once.
-function RetryOnAuth({
-  user,
-  onAuthenticated,
-}: {
-  user: object | undefined;
-  onAuthenticated: () => void;
-}) {
-  const called = useRef(false);
-  useEffect(() => {
-    if (user && !called.current) {
-      called.current = true;
-      onAuthenticated();
-    }
-  }, [user, onAuthenticated]);
-  return null;
-}
-
-function LoginPrompt({ onAuthenticated }: { onAuthenticated: () => void }) {
-  const services = {
-    async handleSignIn(input: { username: string; password?: string }) {
-      return signIn({
-        username: input.username,
-        password: input.password,
-        options: { authFlowType: 'USER_PASSWORD_AUTH' },
-      });
-    },
-  };
-
-  return (
-    <Authenticator hideSignUp services={services}>
-      {({ user }) => <RetryOnAuth user={user} onAuthenticated={onAuthenticated} />}
-    </Authenticator>
-  );
-}
-
 function CentredCard({ children }: { children: React.ReactNode }) {
   return (
-    <Flex align="center" justify="center" minH="100vh" bg="gray.50">
-      <Box p={8} bg="white" borderRadius="lg" boxShadow="md" textAlign="center" maxW="md" w="full">
+    <Flex align="center" justify="center" minH="100dvh" bg="bg.subtle">
+      <Box p={8} bg="bg" borderWidth="1px" borderRadius="xl" boxShadow="md" textAlign="center" maxW="md" w="full">
         {children}
       </Box>
     </Flex>
@@ -113,13 +77,10 @@ export function ShareViewerPage() {
 
   if (status === 'login') {
     return (
-      <CentredCard>
-        <Heading size="md" mb={2}>Sign in to view this share</Heading>
-        <Text color="gray.600" mb={6} fontSize="sm">
-          This share requires authentication. Please sign in to continue.
-        </Text>
-        <LoginPrompt onAuthenticated={() => setRetry(r => r + 1)} />
-      </CentredCard>
+      <AuthPage
+        subtitle="Sign in to view this share"
+        onAuthenticated={() => setRetry(r => r + 1)}
+      />
     );
   }
 
@@ -127,7 +88,7 @@ export function ShareViewerPage() {
     return (
       <CentredCard>
         <Heading size="xl" mb={2} color="red.500">Access Denied</Heading>
-        <Text color="gray.600">You do not have permission to view this share.</Text>
+        <Text color="fg.muted">You do not have permission to view this share.</Text>
       </CentredCard>
     );
   }
@@ -135,8 +96,8 @@ export function ShareViewerPage() {
   if (status === 'notfound') {
     return (
       <CentredCard>
-        <Heading size="xl" mb={2} color="gray.500">Share Not Found</Heading>
-        <Text color="gray.600">This share does not exist or has been removed.</Text>
+        <Heading size="xl" mb={2} color="fg.muted">Share Not Found</Heading>
+        <Text color="fg.muted">This share does not exist or has been removed.</Text>
       </CentredCard>
     );
   }
@@ -145,7 +106,7 @@ export function ShareViewerPage() {
     return (
       <CentredCard>
         <Heading size="xl" mb={2} color="red.500">Something went wrong</Heading>
-        <Text color="gray.600">An unexpected error occurred. Please try again later.</Text>
+        <Text color="fg.muted">An unexpected error occurred. Please try again later.</Text>
       </CentredCard>
     );
   }

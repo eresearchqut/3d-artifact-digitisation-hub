@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Authenticator } from '@aws-amplify/ui-react';
+import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
 import { Amplify } from 'aws-amplify';
-import { signIn } from 'aws-amplify/auth';
-import '@aws-amplify/ui-react/styles.css';
 import { Routes, Route } from 'react-router-dom';
-import { Heading, Flex, Box } from '@chakra-ui/react';
+import { Heading, Flex, Box, Spinner } from '@chakra-ui/react';
 import { Layout } from './components/Layout/Layout';
 import { UserListPage } from './pages/UserListPage';
 import { TeamListPage } from './pages/TeamListPage';
@@ -15,6 +13,7 @@ import { AssetDetailPage } from './pages/AssetDetailPage';
 import { ShareViewerPage } from './pages/ShareViewerPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { setBaseUrl } from './services/api.service';
+import { AuthPage } from './components/AuthPage/AuthPage';
 
 const queryClient: QueryClient = new QueryClient();
 
@@ -86,18 +85,6 @@ function App() {
     );
   }
 
-  const services = {
-    async handleSignIn(input: any) {
-      return signIn({
-        username: input.username,
-        password: input.password,
-        options: {
-          authFlowType: 'USER_PASSWORD_AUTH',
-        },
-      });
-    },
-  };
-
   return (
     <QueryClientProvider client={queryClient}>
       <Routes>
@@ -106,23 +93,42 @@ function App() {
 
         {/* All other routes require authentication */}
         <Route path="/*" element={
-          <Authenticator hideSignUp services={services}>
-            {({ signOut, user }) => (
-              <Layout onSignOut={signOut} email={user?.signInDetails?.loginId}>
-                <Routes>
-                  <Route path="/" element={<DashboardPage />} />
-                  <Route path="/team" element={<TeamListPage />} />
-                  <Route path="/team/:id" element={<TeamDetailPage />} />
-                  <Route path="/user" element={<UserListPage />} />
-                  <Route path="/asset" element={<AssetListPage />} />
-                  <Route path="/asset/:id" element={<AssetDetailPage />} />
-                </Routes>
-              </Layout>
-            )}
-          </Authenticator>
+          <Authenticator.Provider>
+            <AuthenticatedApp />
+          </Authenticator.Provider>
         } />
       </Routes>
     </QueryClientProvider>
+  );
+}
+
+/** Reads auth state and renders either the custom login page or the app. */
+function AuthenticatedApp() {
+  const { authStatus, user, signOut } = useAuthenticator(ctx => [ctx.authStatus, ctx.user]);
+
+  if (authStatus === 'configuring') {
+    return (
+      <Flex align="center" justify="center" minH="100vh">
+        <Spinner size="xl" />
+      </Flex>
+    );
+  }
+
+  if (authStatus !== 'authenticated') {
+    return <AuthPage />;
+  }
+
+  return (
+    <Layout onSignOut={signOut} email={(user as any)?.signInDetails?.loginId}>
+      <Routes>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/team" element={<TeamListPage />} />
+        <Route path="/team/:id" element={<TeamDetailPage />} />
+        <Route path="/user" element={<UserListPage />} />
+        <Route path="/asset" element={<AssetListPage />} />
+        <Route path="/asset/:id" element={<AssetDetailPage />} />
+      </Routes>
+    </Layout>
   );
 }
 
