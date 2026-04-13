@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Box, Button, Card, Flex, Heading, Stack, Text } from '@chakra-ui/react';
 import { Globe, Users, UserCircle, Upload, Share2, Shield } from 'lucide-react';
 import { useIsAdmin } from '../hooks/useIsAdmin';
+import { usePageTour } from '../hooks/usePageTour';
+import { DASHBOARD_TOUR_STEPS } from '../constants/tourSteps';
 
 interface FeatureCardProps {
   icon: React.ReactNode;
@@ -43,11 +45,13 @@ function FeatureCard({ icon, title, description, tips, to }: FeatureCardProps) {
 
 export const DashboardPage: React.FC = () => {
   const isAdmin = useIsAdmin();
+  const steps = useMemo(() => DASHBOARD_TOUR_STEPS, []);
+  usePageTour(steps);
 
   return (
     <Stack gap={8}>
       {/* Header */}
-      <Stack gap={2}>
+      <Stack gap={2} id="dashboard-heading">
         <Heading size="2xl" color="fg">3D Artifact Digitisation Hub — Management Console</Heading>
         <Text color="fg.muted" fontSize="lg">
           Upload, manage, and securely share 3D scanned artefacts.
@@ -55,7 +59,7 @@ export const DashboardPage: React.FC = () => {
       </Stack>
 
       {/* Overview */}
-      <Card.Root bg="colorPalette.muted" borderWidth={0}>
+      <Card.Root bg="colorPalette.muted" borderWidth={0} id="dashboard-about">
         <Card.Body>
           <Stack gap={3}>
             <Heading size="md">About this tool</Heading>
@@ -70,7 +74,7 @@ export const DashboardPage: React.FC = () => {
       </Card.Root>
 
       {/* Feature cards */}
-      <Stack gap={4}>
+      <Stack gap={4} id="dashboard-features">
         <Heading size="md">What you can do</Heading>
         <Box
           display="grid"
@@ -122,7 +126,7 @@ export const DashboardPage: React.FC = () => {
       </Stack>
 
       {/* Quick tips */}
-      <Card.Root>
+      <Card.Root id="dashboard-access-ref">
         <Card.Body>
           <Stack gap={3}>
             <Flex align="center" gap={2}>

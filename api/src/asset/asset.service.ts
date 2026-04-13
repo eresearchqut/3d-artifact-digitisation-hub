@@ -26,7 +26,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { Asset } from './asset.model';
+import { Asset, AssetStatus } from './asset.model';
 import { AssetAccess } from './asset-access.model';
 import { PaginatedResponse } from '../utils/pagination.model';
 
@@ -83,6 +83,9 @@ export class AssetService {
       return {
         id: unmarshalled.PK.replace('ASSET#', ''),
         key: unmarshalled.key || '',
+        ...(unmarshalled.status && {
+          status: unmarshalled.status as AssetStatus,
+        }),
         ...(unmarshalled.uploadedBy && { uploadedBy: unmarshalled.uploadedBy }),
         ...(unmarshalled.metadata && { metadata: unmarshalled.metadata }),
       };
@@ -121,6 +124,9 @@ export class AssetService {
     return {
       id: unmarshalled.PK.replace('ASSET#', ''),
       key: unmarshalled.key || '',
+      ...(unmarshalled.status && {
+        status: unmarshalled.status as AssetStatus,
+      }),
       ...(unmarshalled.uploadedBy && { uploadedBy: unmarshalled.uploadedBy }),
       ...(unmarshalled.metadata && { metadata: unmarshalled.metadata }),
     };
@@ -277,7 +283,7 @@ export class AssetService {
       name: metadata?.name || id,
       uploadedAt: new Date().toISOString(),
       uploadedBy,
-      status: 'pending',
+      status: AssetStatus.UPLOADING,
       ...(metadata && Object.keys(metadata).length > 0 && { metadata }),
     };
     await this.dynamoDBClient.send(

@@ -82,7 +82,7 @@ aws lambda create-function \
   --role arn:aws:iam::000000000000:role/lambda-execution-role \
   --handler index.handler \
   --zip-file fileb:///packages/asset-splat-transform/lambda.zip \
-  --environment Variables="{S3_ENDPOINT=http://localstack:4566,AWS_REGION=us-east-1}" \
+  --environment Variables="{DYNAMODB_ENDPOINT=http://localstack:4566,DYNAMODB_TABLE=test-table,S3_ENDPOINT=http://localstack:4566,AWS_REGION=us-east-1}" \
   --timeout 900 \
   --memory-size 10240 \
   --region us-east-1 > /dev/null 2>&1 || \

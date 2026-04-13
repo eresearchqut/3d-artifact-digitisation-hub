@@ -1,4 +1,6 @@
 import { S3Client, GetObjectCommand, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { DynamoDBClient, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
+import { marshall } from '@aws-sdk/util-dynamodb';
 import * as path from 'path';
 import * as mime from 'mime-types';
 import { Readable } from 'node:stream';
@@ -59,6 +61,26 @@ const s3Client = new S3Client({
     forcePathStyle: !!process.env.S3_ENDPOINT
 });
 
+const dynamoClient = new DynamoDBClient({
+    region: process.env.AWS_REGION,
+    endpoint: process.env.DYNAMODB_ENDPOINT || undefined,
+});
+
+async function updateAssetStatus(assetId: string, status: string): Promise<void> {
+    const table = process.env.DYNAMODB_TABLE || '3d-hub-assets';
+    try {
+        await dynamoClient.send(new UpdateItemCommand({
+            TableName: table,
+            Key: marshall({ PK: `ASSET#${assetId}`, SK: `ASSET#${assetId}` }),
+            UpdateExpression: 'SET #status = :status',
+            ExpressionAttributeNames: { '#status': 'status' },
+            ExpressionAttributeValues: marshall({ ':status': status }),
+        }));
+    } catch (err) {
+        logger.warn('Failed to update asset status', { assetId, status, err });
+    }
+}
+
 // EventBridge S3 Object Created notification detail shape
 interface S3ObjectCreatedDetail {
     version: string;
@@ -96,8 +118,10 @@ export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCrea
         logger.warn('Could not retrieve object metadata; falling back to assetId as filename', { key, assetId });
     }
 
+    await updateAssetStatus(assetId, 'VIEWER_BUILDING');
     try {
         await processAssetToViewer(s3Client, bucketName, key, assetId, originalFilename);
+        await updateAssetStatus(assetId, 'VIEWER_CONSTRUCTED');
     } catch (error) {
         logger.error('Failed to transform asset', { assetId, error });
     }

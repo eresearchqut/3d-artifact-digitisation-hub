@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, UserCircle, Globe, LogOut } from 'lucide-react';
-import { Box, Flex, VStack, HStack, Text, Heading, Icon, Button as ChakraButton } from '@chakra-ui/react';
+import { LayoutDashboard, Users, UserCircle, Globe, LogOut, HelpCircle } from 'lucide-react';
+import { Box, Flex, VStack, HStack, Text, Heading, Icon, Button as ChakraButton, IconButton } from '@chakra-ui/react';
+import { useTour } from 'modern-tour';
 
 import { ColorModeButton } from '../ui/color-mode';
 import { useIsAdmin } from '../../hooks/useIsAdmin';
@@ -22,6 +23,7 @@ function getInitials(email?: string): string {
 
 export const Layout: React.FC<LayoutProps> = ({ children, onSignOut, email }) => {
   const isAdmin = useIsAdmin();
+  const { start } = useTour();
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true, adminOnly: false },
@@ -140,6 +142,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSignOut, email }) =>
                 v1.0.0
               </Text>
               <ColorModeButton />
+              <IconButton
+                aria-label="Start page tour"
+                variant="ghost"
+                size="sm"
+                onClick={() => start()}
+                title="Start page tour"
+              >
+                <Icon as={HelpCircle} boxSize="5" />
+              </IconButton>
               </HStack>
           </Flex>
         </Box>

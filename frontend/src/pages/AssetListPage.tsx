@@ -1,20 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { assetService, getBaseUrl } from '../services/api.service';
+import { AssetStatus } from '../services/types';
 import { Plus, Trash2, Globe, Settings2 } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Text } from '@chakra-ui/react';
+import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Text } from '@chakra-ui/react';
+import { toaster } from '../components/ui/toaster';
 import { FilePicker } from '../components/FilePicker/FilePicker';
+import { usePageTour } from '../hooks/usePageTour';
+import { ASSET_LIST_TOUR_STEPS } from '../constants/tourSteps';
 
 interface Asset {
   id: string;
   key: string;
   bucket?: string;
+  status?: AssetStatus;
   uploadedAt?: string;
   uploadedBy?: string;
   metadata?: Record<string, string>;
 }
+
+const STATUS_CONFIG: Record<AssetStatus, { label: string; colorPalette: string }> = {
+  [AssetStatus.UPLOADING]:          { label: 'Uploading',          colorPalette: 'blue'   },
+  [AssetStatus.UPLOADED]:           { label: 'Uploaded',           colorPalette: 'cyan'   },
+  [AssetStatus.VIEWER_BUILDING]:    { label: 'Viewer Building',    colorPalette: 'orange' },
+  [AssetStatus.VIEWER_CONSTRUCTED]: { label: 'Viewer Constructed', colorPalette: 'green'  },
+};
 
 function formatFileSize(bytes: string | undefined): string {
   const n = Number(bytes);
@@ -43,6 +55,9 @@ export const AssetListPage: React.FC = () => {
   const [uploadFileName, setUploadFileName] = useState('');
   const [viewerAsset, setViewerAsset] = useState<Asset | null>(null);
 
+  const steps = useMemo(() => ASSET_LIST_TOUR_STEPS, []);
+  usePageTour(steps);
+
   const { data: assets, isLoading, error } = useQuery({
     queryKey: ['assets'],
     queryFn: () => assetService.findAll(),
@@ -52,6 +67,10 @@ export const AssetListPage: React.FC = () => {
     mutationFn: (id: string) => assetService.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assets'] });
+      toaster.create({ type: 'success', title: 'Asset deleted' });
+    },
+    onError: (err: Error) => {
+      toaster.create({ type: 'error', title: 'Failed to delete asset', description: err.message });
     },
   });
 
@@ -110,12 +129,14 @@ export const AssetListPage: React.FC = () => {
         setIsUploading(false);
         setUploadProgress(0);
         setIsUploadOpen(false);
+        toaster.create({ type: 'success', title: 'Upload complete', description: uploadFileName });
       }, 1000);
     } catch (err) {
       console.error('Upload failed', err);
       setIsUploading(false);
       setUploadProgress(0);
       setIsUploadOpen(false);
+      toaster.create({ type: 'error', title: 'Upload failed', description: err instanceof Error ? err.message : undefined });
     }
   };
 
@@ -140,6 +161,15 @@ export const AssetListPage: React.FC = () => {
       key: 'uploadedBy',
       header: 'Uploaded By',
       render: (asset) => <span>{asset.uploadedBy ?? '—'}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (asset) => {
+        if (!asset.status) return <span>—</span>;
+        const cfg = STATUS_CONFIG[asset.status];
+        return <Badge colorPalette={cfg.colorPalette} variant="subtle" size="sm">{cfg.label}</Badge>;
+      },
     },
     {
       key: 'actions',
@@ -174,21 +204,23 @@ export const AssetListPage: React.FC = () => {
 
   return (
     <Stack gap={6}>
-      <Flex justify="space-between" align="center">
+      <Flex justify="space-between" align="center" id="asset-list-heading">
         <Heading size="2xl" color="fg">Assets</Heading>
-        <Button onClick={() => setIsUploadOpen(true)}>
+        <Button id="asset-upload-btn" onClick={() => setIsUploadOpen(true)}>
           <Plus />
           Upload Asset
         </Button>
       </Flex>
 
 
-      <DataTable
-        data={assets?.data}
-        columns={columns}
-        keyExtractor={(asset) => asset.id}
-        emptyMessage="No assets found."
-      />
+      <Box id="asset-table">
+        <DataTable
+          data={assets?.data}
+          columns={columns}
+          keyExtractor={(asset) => asset.id}
+          emptyMessage="No assets found."
+        />
+      </Box>
 
       {/* Delete Confirmation Dialog */}
       <Dialog.Root open={!!deleteId} onOpenChange={(e: any) => !e.open && setDeleteId(null)}>

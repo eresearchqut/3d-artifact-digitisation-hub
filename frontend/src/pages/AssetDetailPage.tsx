@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetService, shareService, userService, teamService } from '../services/api.service';
-import { Share, ShareAccess, AssetAccess } from '../services/types';
+import { Share, ShareAccess, AssetAccess, AssetStatus } from '../services/types';
 import {
   Box,
   Button,
@@ -21,6 +21,8 @@ import { Switch } from '../components/ui/switch';
 import { toaster } from '../components/ui/toaster';
 import { ArrowLeft, Plus, Trash2, Link, Users, Shield, Copy } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
+import { usePageTour } from '../hooks/usePageTour';
+import { ASSET_DETAIL_TOUR_STEPS } from '../constants/tourSteps';
 
 // ─── Duration helpers ─────────────────────────────────────────────────────────
 
@@ -150,22 +152,22 @@ function ShareRow({
 
   const addUserMutation = useMutation({
     mutationFn: (email: string) => shareService.addUserAccess(assetId, share.id, email),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['share-users', share.id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['share-users', share.id] }); toaster.create({ type: 'success', title: 'User access granted' }); },
     onError: (err: Error) => { console.error('[share] addUser failed', err); toaster.create({ type: 'error', title: 'Failed to add user', description: err.message }); },
   });
   const removeUserMutation = useMutation({
     mutationFn: (email: string) => shareService.removeUserAccess(assetId, share.id, email),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['share-users', share.id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['share-users', share.id] }); toaster.create({ type: 'success', title: 'User access removed' }); },
     onError: (err: Error) => { console.error('[share] removeUser failed', err); toaster.create({ type: 'error', title: 'Failed to remove user', description: err.message }); },
   });
   const addTeamMutation = useMutation({
     mutationFn: (name: string) => shareService.addTeamAccess(assetId, share.id, name),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['share-teams', share.id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['share-teams', share.id] }); toaster.create({ type: 'success', title: 'Team access granted' }); },
     onError: (err: Error) => { console.error('[share] addTeam failed', err); toaster.create({ type: 'error', title: 'Failed to add team', description: err.message }); },
   });
   const removeTeamMutation = useMutation({
     mutationFn: (name: string) => shareService.removeTeamAccess(assetId, share.id, name),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['share-teams', share.id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['share-teams', share.id] }); toaster.create({ type: 'success', title: 'Team access removed' }); },
     onError: (err: Error) => { console.error('[share] removeTeam failed', err); toaster.create({ type: 'error', title: 'Failed to remove team', description: err.message }); },
   });
 
@@ -258,6 +260,9 @@ export const AssetDetailPage: React.FC = () => {
   const [pendingUserSelect, setPendingUserSelect] = useState('');
   const [pendingTeamSelect, setPendingTeamSelect] = useState('');
 
+  const steps = useMemo(() => ASSET_DETAIL_TOUR_STEPS, []);
+  usePageTour(steps);
+
   const { data: asset, isLoading } = useQuery({
     queryKey: ['asset', id],
     queryFn: () => assetService.findOne(id!),
@@ -284,22 +289,22 @@ export const AssetDetailPage: React.FC = () => {
 
   const addUserMutation = useMutation({
     mutationFn: (email: string) => assetService.addUserAccess(id!, email),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-users', id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['asset-users', id] }); toaster.create({ type: 'success', title: 'User access granted' }); },
     onError: (err: Error) => { console.error('[asset] addUser failed', err); toaster.create({ type: 'error', title: 'Failed to add user', description: err.message }); },
   });
   const removeUserMutation = useMutation({
     mutationFn: (email: string) => assetService.removeUserAccess(id!, email),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-users', id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['asset-users', id] }); toaster.create({ type: 'success', title: 'User access removed' }); },
     onError: (err: Error) => { console.error('[asset] removeUser failed', err); toaster.create({ type: 'error', title: 'Failed to remove user', description: err.message }); },
   });
   const addTeamMutation = useMutation({
     mutationFn: (name: string) => assetService.addTeamAccess(id!, name),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-teams', id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['asset-teams', id] }); toaster.create({ type: 'success', title: 'Team access granted' }); },
     onError: (err: Error) => { console.error('[asset] addTeam failed', err); toaster.create({ type: 'error', title: 'Failed to add team', description: err.message }); },
   });
   const removeTeamMutation = useMutation({
     mutationFn: (name: string) => assetService.removeTeamAccess(id!, name),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-teams', id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['asset-teams', id] }); toaster.create({ type: 'success', title: 'Team access removed' }); },
     onError: (err: Error) => { console.error('[asset] removeTeam failed', err); toaster.create({ type: 'error', title: 'Failed to remove team', description: err.message }); },
   });
 
@@ -357,6 +362,7 @@ export const AssetDetailPage: React.FC = () => {
       setPendingTeams([]);
       setPendingUserSelect('');
       setPendingTeamSelect('');
+      toaster.create({ type: 'success', title: 'Share created' });
     },
     onError: (err: Error) => {
       console.error('[createShare] failed:', err);
@@ -366,7 +372,7 @@ export const AssetDetailPage: React.FC = () => {
 
   const revokeShareMutation = useMutation({
     mutationFn: (shareId: string) => shareService.remove(id!, shareId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['asset-shares', id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['asset-shares', id] }); toaster.create({ type: 'success', title: 'Share revoked' }); },
     onError: (err: Error) => { console.error('[revokeShare] failed:', err); toaster.create({ type: 'error', title: 'Failed to revoke share', description: err.message }); },
   });
 
@@ -387,7 +393,7 @@ export const AssetDetailPage: React.FC = () => {
       </Flex>
 
       {/* Asset info */}
-      <Box borderWidth="1px" borderRadius="md" p={4} bg="bg.subtle">
+      <Box borderWidth="1px" borderRadius="md" p={4} bg="bg.subtle" id="asset-detail-info">
         <Stack gap={1}>
           <HStack>
             <Text fontSize="sm" color="fg.muted" w="120px">ID</Text>
@@ -401,17 +407,36 @@ export const AssetDetailPage: React.FC = () => {
             <Text fontSize="sm" color="fg.muted" w="120px">Uploaded at</Text>
             <Text fontSize="sm">{asset.uploadedAt ? new Date(asset.uploadedAt).toLocaleString() : '—'}</Text>
           </HStack>
+          <HStack>
+            <Text fontSize="sm" color="fg.muted" w="120px">Status</Text>
+            {asset.status ? (
+              <Badge
+                colorPalette={
+                  asset.status === AssetStatus.VIEWER_CONSTRUCTED ? 'green'
+                  : asset.status === AssetStatus.VIEWER_BUILDING ? 'orange'
+                  : asset.status === AssetStatus.UPLOADED ? 'cyan'
+                  : 'blue'
+                }
+                variant="subtle"
+                size="sm"
+              >
+                {asset.status.replace(/_/g, ' ')}
+              </Badge>
+            ) : (
+              <Text fontSize="sm">—</Text>
+            )}
+          </HStack>
         </Stack>
       </Box>
 
       {/* Tabs: Access + Shares */}
-      <Tabs.Root defaultValue="shares">
+      <Tabs.Root defaultValue="shares" id="asset-detail-tabs">
         {/* @ts-ignore */}
         <Tabs.List>
           {/* @ts-ignore */}
-          <Tabs.Trigger value="shares"><Link size={14} /> Shares</Tabs.Trigger>
+          <Tabs.Trigger value="shares" id="asset-shares-tab"><Link size={14} /> Shares</Tabs.Trigger>
           {/* @ts-ignore */}
-          <Tabs.Trigger value="access"><Shield size={14} /> Access</Tabs.Trigger>
+          <Tabs.Trigger value="access" id="asset-access-tab"><Shield size={14} /> Access</Tabs.Trigger>
         </Tabs.List>
 
         {/* Access tab */}

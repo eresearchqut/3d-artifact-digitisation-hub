@@ -8,7 +8,7 @@ A platform that enables the management of 3d digital assets. 100% open source.
 
 - **Asset** → Represents a 3D asset:
   - Supported formats: `.ply`, `.spz`, `.splat`, `.sog`
-  - Upload flow: the client calls `POST /asset/upload` (authenticated) to receive a presigned S3 PUT URL; the asset record is written to DynamoDB immediately with `status: pending`, then the client PUTs the file directly to S3
+  - Upload flow: the client calls `POST /asset/upload` (authenticated) to receive a presigned S3 PUT URL; the asset record is written to DynamoDB immediately with `status: UPLOADING`, then the client PUTs the file directly to S3
   - Raw uploads are stored in S3 at `assets/{asset_id}`
   - The DynamoDB record (PK=`ASSET#<id>`, SK=`ASSET#<id>`) stores: `bucket`, `key`, `uploadedAt`, `uploadedBy`, `status`, and a `metadata` map containing the original file name, size, MIME type, and last-modified timestamp
   - An asset viewer is generated and stored in S3 under `viewer/{asset_id}/` by the `packages/asset-splat-transform` package
@@ -17,6 +17,15 @@ A platform that enables the management of 3d digital assets. 100% open source.
   - Additional users and teams can be granted or revoked access at any time with no minimum-owner constraint
   - The asset listing page displays all assets regardless of access
   - When an asset is deleted, all DynamoDB items under `ASSET#<id>` are removed (main record, access records, share records), all share access records under each `SHARE#<id>` are removed, and the raw S3 file and viewer files are deleted
+
+  **Asset status lifecycle** — the `status` field progresses through the following values:
+
+  | Status | Set by | When |
+  |---|---|---|
+  | `UPLOADING` | Management API (`POST /asset/upload`) | Asset record pre-written to DynamoDB before the client begins the S3 PUT |
+  | `UPLOADED` | `asset-upload-listener` Lambda | S3 `Object Created` EventBridge event fires after the client PUT completes |
+  | `VIEWER_BUILDING` | `asset-splat-transform` Lambda | Splat-to-SOG transform starts processing |
+  | `VIEWER_CONSTRUCTED` | `asset-splat-transform` Lambda | Viewer files (`index.html`, `index.js`, `index.css`, `index.sog`, `settings.json`) have been written to S3 under `viewer/{asset_id}/` |
 
 - **User** → Represents a user of the platform:
   - Users are managed in Cognito; each user has an `id` (Cognito username), an `email`, and an `isAdmin` flag

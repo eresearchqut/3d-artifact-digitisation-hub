@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { userService } from '../services/api.service';
 import { Plus, Trash2, Mail, ShieldCheck, ShieldOff, KeyRound, RefreshCw } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Input, Checkbox, Text } from '@chakra-ui/react';
+import { toaster } from '../components/ui/toaster';
+import { usePageTour } from '../hooks/usePageTour';
+import { USER_LIST_TOUR_STEPS } from '../constants/tourSteps';
 
 interface User {
   id: string;
@@ -21,6 +24,9 @@ export const UserListPage: React.FC = () => {
   const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [requireReset, setRequireReset] = useState(true);
+
+  const steps = useMemo(() => USER_LIST_TOUR_STEPS, []);
+  usePageTour(steps);
 
   useEffect(() => {
     fetchAuthSession()
@@ -41,6 +47,10 @@ export const UserListPage: React.FC = () => {
     mutationFn: (id: string) => userService.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      toaster.create({ type: 'success', title: 'User deleted' });
+    },
+    onError: (err: Error) => {
+      toaster.create({ type: 'error', title: 'Failed to delete user', description: err.message });
     },
   });
 
@@ -48,14 +58,22 @@ export const UserListPage: React.FC = () => {
     mutationFn: (email: string) => userService.create({ email }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      toaster.create({ type: 'success', title: 'User created' });
+    },
+    onError: (err: Error) => {
+      toaster.create({ type: 'error', title: 'Failed to create user', description: err.message });
     },
   });
 
   const setAdminMutation = useMutation({
     mutationFn: ({ id, isAdmin }: { id: string; isAdmin: boolean }) =>
       userService.setAdmin(id, isAdmin),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      toaster.create({ type: 'success', title: variables.isAdmin ? 'Admin role granted' : 'Admin role removed' });
+    },
+    onError: (err: Error) => {
+      toaster.create({ type: 'error', title: 'Failed to update role', description: err.message });
     },
   });
 
@@ -66,6 +84,10 @@ export const UserListPage: React.FC = () => {
       setResetPasswordUserId(null);
       setNewPassword('');
       setRequireReset(true);
+      toaster.create({ type: 'success', title: 'Password reset successfully' });
+    },
+    onError: (err: Error) => {
+      toaster.create({ type: 'error', title: 'Failed to reset password', description: err.message });
     },
   });
 
@@ -185,20 +207,22 @@ export const UserListPage: React.FC = () => {
 
   return (
     <Stack gap={6}>
-      <Flex justify="space-between" align="center">
+      <Flex justify="space-between" align="center" id="user-list-heading">
         <Heading size="2xl" color="fg">Users</Heading>
-        <Button onClick={handleCreate}>
+        <Button id="user-create-btn" onClick={handleCreate}>
           <Plus size={20} />
           Add User
         </Button>
       </Flex>
 
-      <DataTable
-        data={data?.data}
-        columns={columns}
-        keyExtractor={(user) => user.id}
-        emptyMessage="No users found."
-      />
+      <Box id="user-table">
+        <DataTable
+          data={data?.data}
+          columns={columns}
+          keyExtractor={(user) => user.id}
+          emptyMessage="No users found."
+        />
+      </Box>
 
       {/* Delete Confirmation Dialog */}
       <Dialog.Root open={!!deleteId} onOpenChange={(e: any) => !e.open && setDeleteId(null)}>

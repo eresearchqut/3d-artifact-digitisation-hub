@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamService, userService } from '../services/api.service';
 import { ArrowLeft, UserPlus, Trash2, Users, Plus } from 'lucide-react';
 import { Heading, Flex, Box, Stack, Button, Text, HStack, Card } from '@chakra-ui/react';
+import { toaster } from '../components/ui/toaster';
 import { DataTable, Column } from '../components/DataTable/DataTable';
+import { usePageTour } from '../hooks/usePageTour';
+import { TEAM_DETAIL_TOUR_STEPS } from '../constants/tourSteps';
 
 export const TeamDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState('');
+
+  const steps = useMemo(() => TEAM_DETAIL_TOUR_STEPS, []);
+  usePageTour(steps);
 
   const { data: team, isLoading: isTeamLoading } = useQuery({
     queryKey: ['team', id],
@@ -33,6 +39,10 @@ export const TeamDetailPage: React.FC = () => {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['teamUsers', id] });
       setSelectedUserId('');
+      toaster.create({ type: 'success', title: 'User added to team' });
+    },
+    onError: (err: Error) => {
+      toaster.create({ type: 'error', title: 'Failed to add user', description: err.message });
     },
   });
 
@@ -40,6 +50,10 @@ export const TeamDetailPage: React.FC = () => {
     mutationFn: (userId: string) => teamService.removeUser(id!, userId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['teamUsers', id] });
+      toaster.create({ type: 'success', title: 'User removed from team' });
+    },
+    onError: (err: Error) => {
+      toaster.create({ type: 'error', title: 'Failed to remove user', description: err.message });
     },
   });
 
@@ -75,7 +89,7 @@ export const TeamDetailPage: React.FC = () => {
         </Link>
       </Button>
 
-      <Flex align="center" gap={4}>
+      <Flex align="center" gap={4} id="team-detail-heading">
         <Box bg="colorPalette.muted" p={3} borderRadius="xl" color="colorPalette.fg">
           <Users size={32} />
         </Box>
@@ -85,7 +99,7 @@ export const TeamDetailPage: React.FC = () => {
         </Box>
       </Flex>
 
-      <Card.Root maxW="2xl">
+      <Card.Root maxW="2xl" id="team-members-card">
         <Card.Header borderBottomWidth="1px" pb={4}>
           <HStack>
             <UserPlus size={20} />

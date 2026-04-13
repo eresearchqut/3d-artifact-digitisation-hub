@@ -5,6 +5,7 @@ import { Amplify } from 'aws-amplify';
 import { Routes, Route } from 'react-router-dom';
 import { Heading, Flex, Box, Spinner } from '@chakra-ui/react';
 import { Layout } from './components/Layout/Layout';
+import { TourManager } from './contexts/PageTourContext';
 import { UserListPage } from './pages/UserListPage';
 import { TeamListPage } from './pages/TeamListPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
@@ -119,16 +120,18 @@ function AuthenticatedApp() {
   }
 
   return (
-    <Layout onSignOut={signOut} email={(user as any)?.signInDetails?.loginId}>
-      <Routes>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/team" element={<TeamListPage />} />
-        <Route path="/team/:id" element={<TeamDetailPage />} />
-        <Route path="/user" element={<UserListPage />} />
-        <Route path="/asset" element={<AssetListPage />} />
-        <Route path="/asset/:id" element={<AssetDetailPage />} />
-      </Routes>
-    </Layout>
+    <TourManager>
+      <Layout onSignOut={signOut} email={(user as any)?.signInDetails?.loginId}>
+        <Routes>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/team" element={<TeamListPage />} />
+          <Route path="/team/:id" element={<TeamDetailPage />} />
+          <Route path="/user" element={<UserListPage />} />
+          <Route path="/asset" element={<AssetListPage />} />
+          <Route path="/asset/:id" element={<AssetDetailPage />} />
+        </Routes>
+      </Layout>
+    </TourManager>
   );
 }
 

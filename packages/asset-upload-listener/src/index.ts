@@ -60,7 +60,7 @@ export const handler: Handler<S3ObjectCreatedEvent> = async (event: S3ObjectCrea
         ':key': key,
         ':uploadedAt': new Date().toISOString(),
         ':name': assetId,
-        ':status': 'uploaded',
+        ':status': 'UPLOADED',
       }),
     });
     await dynamoClient.send(command);

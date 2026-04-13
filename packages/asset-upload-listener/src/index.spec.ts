@@ -56,7 +56,7 @@ describe('asset-upload-listener handler', () => {
     expect(input.Key?.SK?.S).toBe('ASSET#asset-123');
     expect(input.ExpressionAttributeValues?.[':bucket']?.S).toBe('site-uploads');
     expect(input.ExpressionAttributeValues?.[':key']?.S).toBe('assets/asset-123');
-    expect(input.ExpressionAttributeValues?.[':status']?.S).toBe('uploaded');
+    expect(input.ExpressionAttributeValues?.[':status']?.S).toBe('UPLOADED');
   });
 
   it('should fall back to assetId as name via if_not_exists expression', async () => {

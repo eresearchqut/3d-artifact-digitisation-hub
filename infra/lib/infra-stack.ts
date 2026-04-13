@@ -139,6 +139,7 @@ export class InfraStack extends cdk.Stack {
           'cognito-idp:AdminCreateUser',
           'cognito-idp:AdminDeleteUser',
           'cognito-idp:AdminGetUser',
+          'cognito-idp:AdminSetUserPassword',
           'cognito-idp:AdminUpdateUserAttributes',
           'cognito-idp:ListUsers',
           'cognito-idp:CreateGroup',
@@ -187,6 +188,7 @@ export class InfraStack extends cdk.Stack {
       role: lambdaRole,
       environment: {
         AWS_REGION_OVERRIDE: this.region,
+        DYNAMODB_TABLE: table.tableName,
         // Allow V8 to use most of the Lambda's memory. Without this Node.js caps
         // its heap at ~1.5 GB regardless of the configured Lambda memory size.
         NODE_OPTIONS: '--max-old-space-size=9216',

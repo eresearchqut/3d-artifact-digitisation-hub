@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamService } from '../services/api.service';
 import { Plus, Trash2, Settings2, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DataTable, Column } from '../components/DataTable/DataTable';
 import { Button, HStack, Heading, Flex, Box, Stack, Dialog, Input, Text } from '@chakra-ui/react';
+import { toaster } from '../components/ui/toaster';
 import { getCurrentUser } from 'aws-amplify/auth';
+import { usePageTour } from '../hooks/usePageTour';
+import { TEAM_LIST_TOUR_STEPS } from '../constants/tourSteps';
 
 interface Team {
   name: string;
@@ -18,6 +21,9 @@ export const TeamListPage: React.FC = () => {
   const [createName, setCreateName] = useState('');
   const [createDescription, setCreateDescription] = useState('');
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+
+  const steps = useMemo(() => TEAM_LIST_TOUR_STEPS, []);
+  usePageTour(steps);
 
   useEffect(() => {
     getCurrentUser().then((u) => setCurrentUsername(u.username)).catch(() => {});
@@ -33,6 +39,10 @@ export const TeamListPage: React.FC = () => {
     mutationFn: (id: string) => teamService.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toaster.create({ type: 'success', title: 'Team deleted' });
+    },
+    onError: (err: Error) => {
+      toaster.create({ type: 'error', title: 'Failed to delete team', description: err.message });
     },
   });
 
@@ -46,6 +56,10 @@ export const TeamListPage: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toaster.create({ type: 'success', title: 'Team created' });
+    },
+    onError: (err: Error) => {
+      toaster.create({ type: 'error', title: 'Failed to create team', description: err.message });
     },
   });
 
@@ -114,20 +128,22 @@ export const TeamListPage: React.FC = () => {
 
   return (
     <Stack gap={6}>
-      <Flex justify="space-between" align="center">
+      <Flex justify="space-between" align="center" id="team-list-heading">
         <Heading size="2xl" color="fg">Teams</Heading>
-        <Button onClick={() => setIsCreateOpen(true)}>
+        <Button id="team-create-btn" onClick={() => setIsCreateOpen(true)}>
           <Plus size={20} />
           Add Team
         </Button>
       </Flex>
 
-      <DataTable
-        data={data?.data}
-        columns={columns}
-        keyExtractor={(team) => team.name}
-        emptyMessage="No teams found. Create your first one!"
-      />
+      <Box id="team-table">
+        <DataTable
+          data={data?.data}
+          columns={columns}
+          keyExtractor={(team) => team.name}
+          emptyMessage="No teams found. Create your first one!"
+        />
+      </Box>
 
       {/* Delete Confirmation Dialog */}
       <Dialog.Root open={!!deleteName} onOpenChange={(e: any) => !e.open && setDeleteName(null)}>

@@ -21,9 +21,17 @@ export interface User {
   isAdmin?: boolean;
 }
 
+export enum AssetStatus {
+  UPLOADING = 'UPLOADING',
+  UPLOADED = 'UPLOADED',
+  VIEWER_BUILDING = 'VIEWER_BUILDING',
+  VIEWER_CONSTRUCTED = 'VIEWER_CONSTRUCTED',
+}
+
 export interface Asset {
   id: string;
   key: string;
+  status?: AssetStatus;
   uploadedAt?: string;
   uploadedBy?: string;
 }
