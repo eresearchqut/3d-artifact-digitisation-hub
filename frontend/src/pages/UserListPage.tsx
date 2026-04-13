@@ -8,6 +8,7 @@ import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Input, Checkb
 import { toaster } from '../components/ui/toaster';
 import { usePageTour } from '../hooks/usePageTour';
 import { USER_LIST_TOUR_STEPS } from '../constants/tourSteps';
+import { usePagination } from '../hooks/usePagination';
 
 interface User {
   id: string;
@@ -38,14 +39,16 @@ export const UserListPage: React.FC = () => {
   }, []);
 
   const queryClient = useQueryClient();
+  const { limit, cursor, hasPrev, goNext, goPrev, reset: resetPagination } = usePagination(10);
   const { data, isLoading, error } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => userService.findAll(),
+    queryKey: ['users', { limit, cursor }],
+    queryFn: () => userService.findAll(limit, cursor),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => userService.remove(id),
     onSuccess: () => {
+      resetPagination();
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toaster.create({ type: 'success', title: 'User deleted' });
     },
@@ -57,6 +60,7 @@ export const UserListPage: React.FC = () => {
   const createMutation = useMutation({
     mutationFn: (email: string) => userService.create({ email }),
     onSuccess: () => {
+      resetPagination();
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toaster.create({ type: 'success', title: 'User created' });
     },
@@ -221,6 +225,14 @@ export const UserListPage: React.FC = () => {
           columns={columns}
           keyExtractor={(user) => user.id}
           emptyMessage="No users found."
+          pagination={{
+            hasPrev,
+            hasMore: !!data?.pagination.has_more,
+            onPrev: goPrev,
+            onNext: () => data?.pagination.next_cursor && goNext(data.pagination.next_cursor),
+            count: data?.data?.length ?? 0,
+            isLoading,
+          }}
         />
       </Box>
 

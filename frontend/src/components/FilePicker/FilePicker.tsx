@@ -43,7 +43,10 @@ export const FilePicker: React.FC<FilePickerProps> = ({
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      onFileSelect(e.target.files[0]);
+      const file = e.target.files[0];
+      // Reset the input value so selecting the same file again triggers onChange
+      e.target.value = '';
+      onFileSelect(file);
     }
   };
 

@@ -9,6 +9,7 @@ import { toaster } from '../components/ui/toaster';
 import { getCurrentUser } from 'aws-amplify/auth';
 import { usePageTour } from '../hooks/usePageTour';
 import { TEAM_LIST_TOUR_STEPS } from '../constants/tourSteps';
+import { usePagination } from '../hooks/usePagination';
 
 interface Team {
   name: string;
@@ -30,14 +31,16 @@ export const TeamListPage: React.FC = () => {
   }, []);
 
   const queryClient = useQueryClient();
+  const { limit, cursor, hasPrev, goNext, goPrev, reset: resetPagination } = usePagination(10);
   const { data, isLoading, error } = useQuery({
-    queryKey: ['teams'],
-    queryFn: () => teamService.findAll(),
+    queryKey: ['teams', { limit, cursor }],
+    queryFn: () => teamService.findAll(limit, cursor),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => teamService.remove(id),
     onSuccess: () => {
+      resetPagination();
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       toaster.create({ type: 'success', title: 'Team deleted' });
     },
@@ -55,6 +58,7 @@ export const TeamListPage: React.FC = () => {
       return team;
     },
     onSuccess: () => {
+      resetPagination();
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       toaster.create({ type: 'success', title: 'Team created' });
     },
@@ -142,6 +146,14 @@ export const TeamListPage: React.FC = () => {
           columns={columns}
           keyExtractor={(team) => team.name}
           emptyMessage="No teams found. Create your first one!"
+          pagination={{
+            hasPrev,
+            hasMore: !!data?.pagination.has_more,
+            onPrev: goPrev,
+            onNext: () => data?.pagination.next_cursor && goNext(data.pagination.next_cursor),
+            count: data?.data?.length ?? 0,
+            isLoading,
+          }}
         />
       </Box>
 

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Table, Box } from '@chakra-ui/react';
+import { Table, Box, HStack, Text, Flex } from '@chakra-ui/react';
+import { Button } from '../Button/Button';
 
 export interface Column<T> {
   key: keyof T | string;
@@ -10,11 +11,21 @@ export interface Column<T> {
   headerStyle?: React.CSSProperties;
 }
 
+export interface DataTablePaginationProps {
+  hasPrev: boolean;
+  hasMore: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  count: number;
+  isLoading?: boolean;
+}
+
 export interface DataTableProps<T> {
   data: T[] | undefined;
   columns: Column<T>[];
   emptyMessage?: string;
   keyExtractor: (row: T) => string | number;
+  pagination?: DataTablePaginationProps;
 }
 
 export function DataTable<T>({
@@ -22,6 +33,7 @@ export function DataTable<T>({
   columns,
   emptyMessage = 'No data found.',
   keyExtractor,
+  pagination,
 }: DataTableProps<T>) {
   return (
     <Box>
@@ -63,6 +75,30 @@ export function DataTable<T>({
           )}
         </Table.Body>
       </Table.Root>
+
+      {pagination && (
+        <Flex justify="space-between" align="center" mt={4} px={1}>
+          <Text fontSize="sm" color="fg.muted">
+            {pagination.count} record{pagination.count !== 1 ? 's' : ''} on this page
+          </Text>
+          <HStack gap={2}>
+            <Button
+              variant="outline"
+              onClick={pagination.onPrev}
+              disabled={!pagination.hasPrev || pagination.isLoading}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              onClick={pagination.onNext}
+              disabled={!pagination.hasMore || pagination.isLoading}
+            >
+              Next
+            </Button>
+          </HStack>
+        </Flex>
+      )}
     </Box>
   );
 }

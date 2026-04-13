@@ -5,11 +5,12 @@ import { assetService, getBaseUrl } from '../services/api.service';
 import { AssetStatus } from '../services/types';
 import { Plus, Trash2, Globe, Settings2 } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Text } from '@chakra-ui/react';
+import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Text, Spinner } from '@chakra-ui/react';
 import { toaster } from '../components/ui/toaster';
 import { FilePicker } from '../components/FilePicker/FilePicker';
 import { usePageTour } from '../hooks/usePageTour';
 import { ASSET_LIST_TOUR_STEPS } from '../constants/tourSteps';
+import { usePagination } from '../hooks/usePagination';
 
 interface Asset {
   id: string;
@@ -55,17 +56,25 @@ export const AssetListPage: React.FC = () => {
   const [uploadFileName, setUploadFileName] = useState('');
   const [viewerAsset, setViewerAsset] = useState<Asset | null>(null);
 
+  const { limit, cursor, hasPrev, goNext, goPrev, reset: resetPagination } = usePagination(10);
+
   const steps = useMemo(() => ASSET_LIST_TOUR_STEPS, []);
   usePageTour(steps);
 
   const { data: assets, isLoading, error } = useQuery({
-    queryKey: ['assets'],
-    queryFn: () => assetService.findAll(),
+    queryKey: ['assets', { limit, cursor }],
+    queryFn: () => assetService.findAll(limit, cursor),
+    refetchInterval: (query) => {
+      const data = query.state.data?.data;
+      if (!data) return false;
+      return data.some((a) => a.status !== AssetStatus.VIEWER_CONSTRUCTED) ? 5000 : false;
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => assetService.remove(id),
     onSuccess: () => {
+      resetPagination();
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       toaster.create({ type: 'success', title: 'Asset deleted' });
     },
@@ -87,10 +96,11 @@ export const AssetListPage: React.FC = () => {
   };
 
   const handleFileSelect = async (file: File) => {
+    const fileName = file.name;
     try {
       setIsUploading(true);
       setUploadProgress(0);
-      setUploadFileName(file.name);
+      setUploadFileName(fileName);
 
       const metadata = {
         name: file.name,
@@ -125,11 +135,12 @@ export const AssetListPage: React.FC = () => {
       });
 
       setTimeout(() => {
+        resetPagination();
         queryClient.invalidateQueries({ queryKey: ['assets'] });
         setIsUploading(false);
         setUploadProgress(0);
         setIsUploadOpen(false);
-        toaster.create({ type: 'success', title: 'Upload complete', description: uploadFileName });
+        toaster.create({ type: 'success', title: 'Upload complete', description: fileName });
       }, 1000);
     } catch (err) {
       console.error('Upload failed', err);
@@ -168,7 +179,13 @@ export const AssetListPage: React.FC = () => {
       render: (asset) => {
         if (!asset.status) return <span>—</span>;
         const cfg = STATUS_CONFIG[asset.status];
-        return <Badge colorPalette={cfg.colorPalette} variant="subtle" size="sm">{cfg.label}</Badge>;
+        const isInProgress = asset.status !== AssetStatus.VIEWER_CONSTRUCTED;
+        return (
+          <HStack gap={1.5}>
+            {isInProgress && <Spinner size="xs" color={`${cfg.colorPalette}.fg`} />}
+            <Badge colorPalette={cfg.colorPalette} variant="subtle" size="sm">{cfg.label}</Badge>
+          </HStack>
+        );
       },
     },
     {
@@ -219,6 +236,14 @@ export const AssetListPage: React.FC = () => {
           columns={columns}
           keyExtractor={(asset) => asset.id}
           emptyMessage="No assets found."
+          pagination={{
+            hasPrev,
+            hasMore: !!assets?.pagination.has_more,
+            onPrev: goPrev,
+            onNext: () => assets?.pagination.next_cursor && goNext(assets.pagination.next_cursor),
+            count: assets?.data?.length ?? 0,
+            isLoading,
+          }}
         />
       </Box>
 
