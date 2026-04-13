@@ -84,6 +84,7 @@ describe('UserService', () => {
 
   describe('findAll', () => {
     it('should return a paginated list of users', async () => {
+      // ListUsersCommand
       mockCognitoClient.send.mockResolvedValueOnce({
         Users: [
           {
@@ -96,6 +97,12 @@ describe('UserService', () => {
           },
         ],
         PaginationToken: 'next-token',
+      });
+      // ListUsersInGroupCommand (admins)
+      mockCognitoClient.send.mockResolvedValueOnce({ Users: [] });
+      // DescribeUserPoolCommand
+      mockCognitoClient.send.mockResolvedValueOnce({
+        UserPool: { EstimatedNumberOfUsers: 2 },
       });
 
       const result = await service.findAll(2);
@@ -180,7 +187,7 @@ describe('UserService', () => {
       // mock delete
       mockCognitoClient.send.mockResolvedValueOnce({});
 
-      await service.remove(id);
+      await service.remove(id, 'caller-sub');
 
       expect(cognitoClient.send).toHaveBeenCalledWith(
         expect.any(AdminDeleteUserCommand),
@@ -194,7 +201,7 @@ describe('UserService', () => {
         name: 'UserNotFoundException',
       });
 
-      await expect(service.remove(id)).rejects.toThrow(
+      await expect(service.remove(id, 'caller-sub')).rejects.toThrow(
         `User with id #${id} not found`,
       );
     });

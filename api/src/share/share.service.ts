@@ -93,7 +93,7 @@ export class ShareService {
 
   async findAll(
     assetId: string,
-    limit = 100,
+    limit = 10,
     cursor?: string,
   ): Promise<PaginatedResponse<Share>> {
     await this.assetService.findOne(assetId);
@@ -199,7 +199,7 @@ export class ShareService {
   async listShareUserAccess(
     assetId: string,
     shareId: string,
-    limit = 100,
+    limit = 10,
     cursor?: string,
   ): Promise<PaginatedResponse<ShareAccess>> {
     await this.findOne(assetId, shareId);
@@ -243,7 +243,7 @@ export class ShareService {
   async listShareTeamAccess(
     assetId: string,
     shareId: string,
-    limit = 100,
+    limit = 10,
     cursor?: string,
   ): Promise<PaginatedResponse<ShareAccess>> {
     await this.findOne(assetId, shareId);

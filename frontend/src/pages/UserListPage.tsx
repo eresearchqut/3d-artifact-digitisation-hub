@@ -39,7 +39,7 @@ export const UserListPage: React.FC = () => {
   }, []);
 
   const queryClient = useQueryClient();
-  const { limit, cursor, hasPrev, goNext, goPrev, reset: resetPagination } = usePagination(10);
+  const { limit, cursor, hasPrev, goNext, goPrev, reset: resetPagination, pageNumber, changeLimit } = usePagination(10);
   const { data, isLoading, error } = useQuery({
     queryKey: ['users', { limit, cursor }],
     queryFn: () => userService.findAll(limit, cursor),
@@ -231,6 +231,11 @@ export const UserListPage: React.FC = () => {
             onPrev: goPrev,
             onNext: () => data?.pagination.next_cursor && goNext(data.pagination.next_cursor),
             count: data?.data?.length ?? 0,
+            total: data?.pagination.total,
+            pageNumber,
+            pageSize: limit,
+            pageSizeOptions: [10, 25, 50, 100],
+            onPageSizeChange: changeLimit,
             isLoading,
           }}
         />

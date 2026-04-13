@@ -15,7 +15,7 @@ describe('TeamController', () => {
       return {
         data: [{ id: '1', name: 'Test Team' }],
         pagination: {
-          limit: 100,
+          limit: 10,
           has_more: false,
         },
       };
@@ -39,7 +39,7 @@ describe('TeamController', () => {
       return {
         data: [{ id: 'user-1', email: 'user1@example.com' }],
         pagination: {
-          limit: 100,
+          limit: 10,
           has_more: false,
         },
       };
@@ -82,12 +82,12 @@ describe('TeamController', () => {
       const expectedResponse = {
         data: [{ id: '1', name: 'Test Team' }],
         pagination: {
-          limit: 100,
+          limit: 10,
           has_more: false,
         },
       };
       expect(await controller.findAll()).toEqual(expectedResponse);
-      expect(service.findAll).toHaveBeenCalledWith(100, undefined);
+      expect(service.findAll).toHaveBeenCalledWith(10, undefined);
     });
 
     it('should pass limit and cursor to service', async () => {
@@ -140,12 +140,12 @@ describe('TeamController', () => {
       const expectedResponse = {
         data: [{ id: 'user-1', email: 'user1@example.com' }],
         pagination: {
-          limit: 100,
+          limit: 10,
           has_more: false,
         },
       };
       expect(await controller.listUsers('team-1')).toEqual(expectedResponse);
-      expect(service.listUsers).toHaveBeenCalledWith('team-1', 100, undefined);
+      expect(service.listUsers).toHaveBeenCalledWith('team-1', 10, undefined);
     });
 
     it('should pass limit and cursor to service', async () => {

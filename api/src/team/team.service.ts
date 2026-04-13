@@ -63,18 +63,35 @@ export class TeamService {
   }
 
   async findAll(
-    limit = 100,
+    limit = 10,
     cursor?: string,
   ): Promise<PaginatedResponse<Team>> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
 
-    const response = await this.cognitoClient.send(
-      new ListGroupsCommand({
-        UserPoolId: userPoolId,
-        Limit: limit,
-        NextToken: cursor,
-      }),
-    );
+    // Fetch the requested page and count all groups in parallel
+    const [response, totalCount] = await Promise.all([
+      this.cognitoClient.send(
+        new ListGroupsCommand({
+          UserPoolId: userPoolId,
+          Limit: limit,
+          NextToken: cursor,
+        }),
+      ),
+      (async () => {
+        let count = 0;
+        let token: string | undefined;
+        do {
+          const r = await this.cognitoClient.send(
+            new ListGroupsCommand({ UserPoolId: userPoolId, Limit: 60, NextToken: token }),
+          );
+          count += (r.Groups || []).filter(
+            (g) => g.GroupName?.toLowerCase() !== RESERVED_GROUP,
+          ).length;
+          token = r.NextToken;
+        } while (token);
+        return count;
+      })(),
+    ]);
 
     const data: Team[] = (response.Groups || [])
       .filter((group) => group.GroupName?.toLowerCase() !== RESERVED_GROUP)
@@ -89,6 +106,7 @@ export class TeamService {
         limit,
         has_more: !!response.NextToken,
         next_cursor: response.NextToken,
+        total: totalCount,
       },
     };
   }

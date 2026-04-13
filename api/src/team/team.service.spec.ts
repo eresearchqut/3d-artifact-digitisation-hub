@@ -72,12 +72,20 @@ describe('TeamService', () => {
 
   describe('findAll', () => {
     it('should return a paginated list of teams', async () => {
+      // Page data
       mockCognitoClient.send.mockResolvedValueOnce({
         Groups: [
           { GroupName: 'team-1', Description: 'Team 1' },
           { GroupName: 'team-2', Description: 'Team 2' },
         ],
         NextToken: 'token',
+      });
+      // Count scan (all groups, no NextToken)
+      mockCognitoClient.send.mockResolvedValueOnce({
+        Groups: [
+          { GroupName: 'team-1' },
+          { GroupName: 'team-2' },
+        ],
       });
 
       const result = await service.findAll(2);

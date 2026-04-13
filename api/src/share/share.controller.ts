@@ -62,7 +62,7 @@ export class ShareController {
   ): Promise<PaginatedResponse<Share>> {
     return this.shareService.findAll(
       assetId,
-      limit ? parseInt(limit, 10) : 100,
+      limit ? parseInt(limit, 10) : 10,
       cursor,
     );
   }
@@ -104,7 +104,7 @@ export class ShareController {
     return this.shareService.listShareUserAccess(
       assetId,
       shareId,
-      limit ? parseInt(limit, 10) : 100,
+      limit ? parseInt(limit, 10) : 10,
       cursor,
     );
   }
@@ -156,7 +156,7 @@ export class ShareController {
     return this.shareService.listShareTeamAccess(
       assetId,
       shareId,
-      limit ? parseInt(limit, 10) : 100,
+      limit ? parseInt(limit, 10) : 10,
       cursor,
     );
   }

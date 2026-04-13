@@ -48,7 +48,7 @@ export class TeamController {
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ): Promise<PaginatedResponse<Team>> {
-    return this.teamService.findAll(limit ? parseInt(limit, 10) : 100, cursor);
+    return this.teamService.findAll(limit ? parseInt(limit, 10) : 10, cursor);
   }
 
   @Get(':id')
@@ -87,7 +87,7 @@ export class TeamController {
   ): Promise<PaginatedResponse<User>> {
     return this.teamService.listUsers(
       id,
-      limit ? parseInt(limit, 10) : 100,
+      limit ? parseInt(limit, 10) : 10,
       cursor,
     );
   }

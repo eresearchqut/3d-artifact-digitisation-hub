@@ -17,6 +17,11 @@ export interface DataTablePaginationProps {
   onPrev: () => void;
   onNext: () => void;
   count: number;
+  total?: number;
+  pageNumber?: number;
+  pageSize?: number;
+  pageSizeOptions?: number[];
+  onPageSizeChange?: (size: number) => void;
   isLoading?: boolean;
 }
 
@@ -35,6 +40,11 @@ export function DataTable<T>({
   keyExtractor,
   pagination,
 }: DataTableProps<T>) {
+  const totalPages =
+    pagination?.total !== undefined && pagination.pageSize
+      ? Math.ceil(pagination.total / pagination.pageSize)
+      : undefined;
+
   return (
     <Box>
       <Table.Root>
@@ -77,11 +87,40 @@ export function DataTable<T>({
       </Table.Root>
 
       {pagination && (
-        <Flex justify="space-between" align="center" mt={4} px={1}>
-          <Text fontSize="sm" color="fg.muted">
-            {pagination.count} record{pagination.count !== 1 ? 's' : ''} on this page
-          </Text>
+        <Flex justify="space-between" align="center" mt={4} px={1} flexWrap="wrap" gap={2}>
+          <HStack gap={3}>
+            {pagination.total !== undefined && (
+              <Text fontSize="sm" color="fg.muted">
+                {pagination.total} total
+              </Text>
+            )}
+            {pagination.pageNumber !== undefined && totalPages !== undefined && (
+              <Text fontSize="sm" color="fg.muted">
+                Page {pagination.pageNumber} of {totalPages || 1}
+              </Text>
+            )}
+          </HStack>
+
           <HStack gap={2}>
+            {pagination.pageSizeOptions && pagination.onPageSizeChange && (
+              <select
+                value={pagination.pageSize}
+                onChange={(e) => pagination.onPageSizeChange!(Number(e.target.value))}
+                style={{
+                  fontSize: '0.875rem',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--chakra-colors-border)',
+                  background: 'var(--chakra-colors-bg)',
+                  color: 'var(--chakra-colors-fg)',
+                  cursor: 'pointer',
+                }}
+              >
+                {pagination.pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>{size} per page</option>
+                ))}
+              </select>
+            )}
             <Button
               variant="outline"
               onClick={pagination.onPrev}

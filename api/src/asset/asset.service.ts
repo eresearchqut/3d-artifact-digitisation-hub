@@ -61,24 +61,70 @@ export class AssetService {
   }
 
   async findAll(
-    limit = 100,
+    limit = 10,
     cursor?: string,
   ): Promise<PaginatedResponse<Asset>> {
-    // Note: scan is used here for simplicity as the table design may not have a GSI for all assets
-    // A better approach would be to use a GSI or query if the partition key is known.
-    const command = new ScanCommand({
-      TableName: this.tableName,
-      FilterExpression: 'begins_with(PK, :prefix) AND begins_with(SK, :prefix)',
-      ExpressionAttributeValues: marshall({ ':prefix': 'ASSET#' }),
-      Limit: limit,
-      ExclusiveStartKey: cursor
-        ? JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8'))
-        : undefined,
-    });
+    const startKey = cursor
+      ? JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8'))
+      : undefined;
 
-    const response = await this.dynamoDBClient.send(command);
+    const filterExpression =
+      'begins_with(PK, :prefix) AND begins_with(SK, :prefix)';
+    const expressionValues = marshall({ ':prefix': 'ASSET#' });
 
-    const data: Asset[] = (response.Items || []).map((item) => {
+    // Run the count scan in parallel with the first data page
+    const [firstPage, countResp] = await Promise.all([
+      this.dynamoDBClient.send(
+        new ScanCommand({
+          TableName: this.tableName,
+          FilterExpression: filterExpression,
+          ExpressionAttributeValues: expressionValues,
+          Limit: limit * 5,
+          ExclusiveStartKey: startKey,
+        }),
+      ),
+      this.dynamoDBClient.send(
+        new ScanCommand({
+          TableName: this.tableName,
+          FilterExpression: filterExpression,
+          ExpressionAttributeValues: expressionValues,
+          Select: 'COUNT',
+        }),
+      ),
+    ]);
+
+    // DynamoDB's Limit counts evaluated items, not returned items. Keep scanning
+    // until we have `limit` matching records or the table is exhausted.
+    const collected = [...(firstPage.Items || [])];
+    let lastKey = firstPage.LastEvaluatedKey;
+
+    while (collected.length < limit && lastKey) {
+      const resp = await this.dynamoDBClient.send(
+        new ScanCommand({
+          TableName: this.tableName,
+          FilterExpression: filterExpression,
+          ExpressionAttributeValues: expressionValues,
+          Limit: limit * 5,
+          ExclusiveStartKey: lastKey,
+        }),
+      );
+      collected.push(...(resp.Items || []));
+      lastKey = resp.LastEvaluatedKey;
+    }
+
+    const pageItems = collected.slice(0, limit);
+    const hasMore = collected.length > limit || !!lastKey;
+
+    // Use the last returned item's PK/SK as the exclusive start key for the next page
+    let next_cursor: string | null = null;
+    if (hasMore && pageItems.length > 0) {
+      const last = pageItems[pageItems.length - 1];
+      next_cursor = Buffer.from(
+        JSON.stringify({ PK: last['PK'], SK: last['SK'] }),
+      ).toString('base64');
+    }
+
+    const data: Asset[] = pageItems.map((item) => {
       const unmarshalled = unmarshall(item);
       return {
         id: unmarshalled.PK.replace('ASSET#', ''),
@@ -91,19 +137,13 @@ export class AssetService {
       };
     });
 
-    let next_cursor = null;
-    if (response.LastEvaluatedKey) {
-      next_cursor = Buffer.from(
-        JSON.stringify(response.LastEvaluatedKey),
-      ).toString('base64');
-    }
-
     return {
       data,
       pagination: {
         limit,
-        has_more: !!next_cursor,
+        has_more: hasMore,
         next_cursor,
+        total: countResp.Count,
       },
     };
   }
@@ -435,7 +475,7 @@ export class AssetService {
 
   async listUserAccess(
     assetId: string,
-    limit = 100,
+    limit = 10,
     cursor?: string,
   ): Promise<PaginatedResponse<AssetAccess>> {
     await this.findOne(assetId);
@@ -473,7 +513,7 @@ export class AssetService {
 
   async listTeamAccess(
     assetId: string,
-    limit = 100,
+    limit = 10,
     cursor?: string,
   ): Promise<PaginatedResponse<AssetAccess>> {
     await this.findOne(assetId);

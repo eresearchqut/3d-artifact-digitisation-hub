@@ -15,6 +15,8 @@ export class Pagination {
   next_cursor?: string;
   @ApiProperty({ required: false })
   prev_cursor?: string;
+  @ApiProperty({ required: false })
+  total?: number;
 }
 
 export class PaginatedResponse<T> {

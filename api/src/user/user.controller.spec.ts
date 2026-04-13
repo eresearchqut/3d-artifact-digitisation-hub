@@ -63,12 +63,12 @@ describe('UserController', () => {
       const expectedResponse = {
         data: [{ id: '1', email: 'test@example.com' }],
         pagination: {
-          limit: 100,
+          limit: 10,
           has_more: false,
         },
       };
       expect(await controller.findAll()).toEqual(expectedResponse);
-      expect(service.findAll).toHaveBeenCalledWith(100, undefined);
+      expect(service.findAll).toHaveBeenCalledWith(10, undefined);
     });
 
     it('should pass limit and cursor to service', async () => {
@@ -97,8 +97,8 @@ describe('UserController', () => {
 
   describe('remove', () => {
     it('should remove a user', async () => {
-      expect(await controller.remove('1')).toBeUndefined();
-      expect(service.remove).toHaveBeenCalledWith('1');
+      expect(await controller.remove('1', { user: { sub: 'caller-sub' } } as any)).toBeUndefined();
+      expect(service.remove).toHaveBeenCalledWith('1', 'caller-sub');
     });
   });
 });

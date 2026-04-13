@@ -45,7 +45,7 @@ export class AssetController {
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ): Promise<PaginatedResponse<Asset>> {
-    return this.assetService.findAll(limit ? parseInt(limit, 10) : 100, cursor);
+    return this.assetService.findAll(limit ? parseInt(limit, 10) : 10, cursor);
   }
 
   @Get(':id')
@@ -132,7 +132,7 @@ export class AssetController {
   ): Promise<PaginatedResponse<AssetAccess>> {
     return this.assetService.listUserAccess(
       id,
-      limit ? parseInt(limit, 10) : 100,
+      limit ? parseInt(limit, 10) : 10,
       cursor,
     );
   }
@@ -175,7 +175,7 @@ export class AssetController {
   ): Promise<PaginatedResponse<AssetAccess>> {
     return this.assetService.listTeamAccess(
       id,
-      limit ? parseInt(limit, 10) : 100,
+      limit ? parseInt(limit, 10) : 10,
       cursor,
     );
   }

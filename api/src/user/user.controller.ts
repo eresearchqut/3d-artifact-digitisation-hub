@@ -49,7 +49,7 @@ export class UserController {
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ): Promise<PaginatedResponse<User>> {
-    return this.userService.findAll(limit ? parseInt(limit, 10) : 100, cursor);
+    return this.userService.findAll(limit ? parseInt(limit, 10) : 10, cursor);
   }
 
   @Get(':id')

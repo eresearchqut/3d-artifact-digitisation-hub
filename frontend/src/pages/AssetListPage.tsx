@@ -56,7 +56,7 @@ export const AssetListPage: React.FC = () => {
   const [uploadFileName, setUploadFileName] = useState('');
   const [viewerAsset, setViewerAsset] = useState<Asset | null>(null);
 
-  const { limit, cursor, hasPrev, goNext, goPrev, reset: resetPagination } = usePagination(10);
+  const { limit, cursor, hasPrev, goNext, goPrev, reset: resetPagination, pageNumber, changeLimit } = usePagination(10);
 
   const steps = useMemo(() => ASSET_LIST_TOUR_STEPS, []);
   usePageTour(steps);
@@ -242,6 +242,11 @@ export const AssetListPage: React.FC = () => {
             onPrev: goPrev,
             onNext: () => assets?.pagination.next_cursor && goNext(assets.pagination.next_cursor),
             count: assets?.data?.length ?? 0,
+            total: assets?.pagination.total,
+            pageNumber,
+            pageSize: limit,
+            pageSizeOptions: [10, 25, 50, 100],
+            onPageSizeChange: changeLimit,
             isLoading,
           }}
         />

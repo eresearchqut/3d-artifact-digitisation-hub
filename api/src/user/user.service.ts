@@ -15,6 +15,7 @@ import {
   ListUsersCommand,
   ListUsersInGroupCommand,
   AdminGetUserCommand,
+  DescribeUserPoolCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { User } from './user.model';
 import { PaginatedResponse } from '../utils/pagination.model';
@@ -53,12 +54,12 @@ export class UserService {
   }
 
   async findAll(
-    limit: number = 100,
+    limit: number = 10,
     cursor?: string,
   ): Promise<PaginatedResponse<User>> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
 
-    const [usersResponse, adminsResponse] = await Promise.all([
+    const [usersResponse, adminsResponse, poolResponse] = await Promise.all([
       this.cognitoClient.send(
         new ListUsersCommand({
           UserPoolId: userPoolId,
@@ -76,6 +77,10 @@ export class UserService {
           }),
         )
         .catch(() => ({ Users: [] })),
+      // EstimatedNumberOfUsers is cheap — no full scan required
+      this.cognitoClient
+        .send(new DescribeUserPoolCommand({ UserPoolId: userPoolId }))
+        .catch(() => null),
     ]);
 
     const adminUsernames = new Set(
@@ -99,6 +104,7 @@ export class UserService {
         limit,
         has_more: !!usersResponse.PaginationToken,
         next_cursor: usersResponse.PaginationToken,
+        total: poolResponse?.UserPool?.EstimatedNumberOfUsers,
       },
     };
   }
