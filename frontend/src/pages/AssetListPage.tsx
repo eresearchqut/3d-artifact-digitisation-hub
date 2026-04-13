@@ -179,6 +179,7 @@ export const AssetListPage: React.FC = () => {
       render: (asset) => {
         if (!asset.status) return <span>—</span>;
         const cfg = STATUS_CONFIG[asset.status];
+        if (!cfg) return <span>{asset.status}</span>;
         const isInProgress = asset.status !== AssetStatus.VIEWER_CONSTRUCTED;
         return (
           <HStack gap={1.5}>

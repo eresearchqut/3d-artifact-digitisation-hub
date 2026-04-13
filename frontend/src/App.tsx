@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
 import { Amplify } from 'aws-amplify';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { Routes, Route } from 'react-router-dom';
 import { Heading, Flex, Box, Spinner } from '@chakra-ui/react';
 import { Layout } from './components/Layout/Layout';
@@ -105,7 +106,18 @@ function App() {
 
 /** Reads auth state and renders either the custom login page or the app. */
 function AuthenticatedApp() {
-  const { authStatus, user, signOut } = useAuthenticator(ctx => [ctx.authStatus, ctx.user]);
+  const { authStatus, signOut } = useAuthenticator(ctx => [ctx.authStatus]);
+  const [email, setEmail] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (authStatus !== 'authenticated') return;
+    fetchAuthSession()
+      .then((session) => {
+        const emailClaim = session.tokens?.idToken?.payload?.['email'] as string | undefined;
+        if (emailClaim) setEmail(emailClaim);
+      })
+      .catch(() => {});
+  }, [authStatus]);
 
   if (authStatus === 'configuring') {
     return (
@@ -121,7 +133,7 @@ function AuthenticatedApp() {
 
   return (
     <TourManager>
-      <Layout onSignOut={signOut} email={(user as any)?.signInDetails?.loginId}>
+      <Layout onSignOut={signOut} email={email}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/team" element={<TeamListPage />} />
