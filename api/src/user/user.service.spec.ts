@@ -47,6 +47,8 @@ describe('UserService', () => {
       CognitoIdentityProviderClient,
     );
     jest.clearAllMocks();
+    // Default: resolve with an empty object so .catch() is never called on undefined
+    mockCognitoClient.send.mockResolvedValue({});
   });
 
   it('should be defined', () => {
