@@ -13,7 +13,6 @@ A self-hosted, open-source platform for managing 3D digital assets. Upload Gauss
 - **Shareable links** — create public or access-controlled share links with optional expiry (minutes → years)
 - **User & team management** — invite users, organise them into teams, promote to administrator role
 - **Admin role** — `administrators` Cognito group gates user/team management API endpoints; hidden in the UI for non-admin users
-- **Cursor-based pagination** — stable, performant pagination with total counts across all listing pages
 
 ---
 
