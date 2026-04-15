@@ -21,6 +21,7 @@ export const TeamListPage: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createDescription, setCreateDescription] = useState('');
+  const [createNameError, setCreateNameError] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
 
   const steps = useMemo(() => TEAM_LIST_TOUR_STEPS, []);
@@ -68,11 +69,16 @@ export const TeamListPage: React.FC = () => {
   });
 
   const submitCreate = () => {
+    if (/\s/.test(createName)) {
+      setCreateNameError('Team name must not contain spaces. Use hyphens or underscores instead (e.g. "QUT-DRI").');
+      return;
+    }
     if (createName) {
       createMutation.mutate({ name: createName, description: createDescription || undefined });
       setIsCreateOpen(false);
       setCreateName('');
       setCreateDescription('');
+      setCreateNameError(null);
     }
   };
 
@@ -203,11 +209,17 @@ export const TeamListPage: React.FC = () => {
                   <Stack gap={1}>
                     <Text fontSize="sm" fontWeight="medium">Name</Text>
                     <Input
-                      placeholder="Enter team name"
+                      placeholder="Enter team name (no spaces)"
                       value={createName}
-                      onChange={(e) => setCreateName(e.target.value)}
+                      onChange={(e) => { setCreateName(e.target.value); setCreateNameError(null); }}
                       autoFocus
                     />
+                    {createNameError && (
+                      <Text fontSize="xs" color="red.500">{createNameError}</Text>
+                    )}
+                    <Text fontSize="xs" color="gray.500">
+                      No spaces allowed — use hyphens or underscores (e.g. QUT-DRI)
+                    </Text>
                   </Stack>
                   <Stack gap={1}>
                     <Text fontSize="sm" fontWeight="medium">Description</Text>

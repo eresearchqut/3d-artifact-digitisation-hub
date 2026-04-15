@@ -58,12 +58,14 @@ export class UserService {
     cursor?: string,
   ): Promise<PaginatedResponse<User>> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
+    // Cognito ListUsers hard-caps Limit at 60
+    const cognitoLimit = Math.min(limit, 60);
 
     const [usersResponse, adminsResponse, poolResponse] = await Promise.all([
       this.cognitoClient.send(
         new ListUsersCommand({
           UserPoolId: userPoolId,
-          Limit: limit,
+          Limit: cognitoLimit,
           PaginationToken: cursor,
         }),
       ),

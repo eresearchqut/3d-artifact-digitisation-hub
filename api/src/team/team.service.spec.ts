@@ -82,10 +82,7 @@ describe('TeamService', () => {
       });
       // Count scan (all groups, no NextToken)
       mockCognitoClient.send.mockResolvedValueOnce({
-        Groups: [
-          { GroupName: 'team-1' },
-          { GroupName: 'team-2' },
-        ],
+        Groups: [{ GroupName: 'team-1' }, { GroupName: 'team-2' }],
       });
 
       const result = await service.findAll(2);

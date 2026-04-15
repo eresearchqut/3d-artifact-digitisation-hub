@@ -142,6 +142,7 @@ export class InfraStack extends cdk.Stack {
           'cognito-idp:AdminSetUserPassword',
           'cognito-idp:AdminUpdateUserAttributes',
           'cognito-idp:ListUsers',
+          'cognito-idp:DescribeUserPool',
           'cognito-idp:CreateGroup',
           'cognito-idp:DeleteGroup',
           'cognito-idp:GetGroup',

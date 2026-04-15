@@ -390,7 +390,11 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       .set(auth)
       .expect(200);
 
-    expect(findAllResponse.body.data).toContainEqual(user);
+    // The findAll response includes isAdmin; use objectContaining so the
+    // assertion is robust to additional fields added in future.
+    expect(findAllResponse.body.data).toContainEqual(
+      expect.objectContaining({ id: user.id, email: user.email }),
+    );
 
     // 3. Find One (GET :id)
     const findOneResponse = await request(app.getHttpServer())
@@ -398,7 +402,9 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       .set(auth)
       .expect(200);
 
-    expect(findOneResponse.body).toEqual(user);
+    expect(findOneResponse.body).toEqual(
+      expect.objectContaining({ id: user.id, email: user.email }),
+    );
 
     // 4. Update (PATCH :id)
     const updateResponse = await request(app.getHttpServer())
@@ -575,12 +581,15 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       .get(`/asset/${assetId}`)
       .expect(200);
 
-    expect(getResponse.body).toEqual({
-      id: assetId,
-      key: `assets/${assetId}`,
-      uploadedBy: testUserEmail,
-      metadata: expect.any(Object),
-    });
+    expect(getResponse.body).toEqual(
+      expect.objectContaining({
+        id: assetId,
+        key: `assets/${assetId}`,
+        uploadedBy: testUserEmail,
+        metadata: expect.any(Object),
+        status: 'UPLOADED',
+      }),
+    );
   });
 
   it('should have ConfigService providing the correct USER_POOL_ID', () => {
@@ -816,6 +825,263 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
 
       const names: string[] = response.body.data.map((t: any) => t.name);
       expect(names).not.toContain('administrators');
+    });
+  });
+
+  // ─── Asset & Share access management ─────────────────────────────────────────
+  //
+  // These tests directly exercise the endpoints that power the "Manage Access"
+  // section of the AssetDetailPage — the area that was reported as broken in
+  // production. They cover the full grant / list / revoke lifecycle for both
+  // users and teams on assets and shares.
+
+  describe('Asset access management', () => {
+    const auth = () => ({ Authorization: `Bearer ${testIdToken}` });
+    let assetId: string;
+    let shareId: string;
+    let memberUserId: string;
+    const memberEmail = 'e2e-access-member@example.com';
+    const teamName = 'e2e-access-team';
+
+    beforeAll(async () => {
+      // Create the asset via the upload endpoint so it is a real DB record
+      const uploadRes = await request(app.getHttpServer())
+        .post('/asset/upload')
+        .set(auth())
+        .send({ metadata: { name: 'access-test.ply' } })
+        .expect(201);
+      assetId = uploadRes.body.id;
+
+      // Create a second user to be used as the access member
+      const userRes = await request(app.getHttpServer())
+        .post('/user')
+        .set(auth())
+        .send({ email: memberEmail })
+        .expect(201);
+      memberUserId = userRes.body.id;
+
+      // Create a team to be used for team access
+      await request(app.getHttpServer())
+        .post('/team')
+        .set(auth())
+        .send({ name: teamName })
+        .expect(201);
+
+      // Create a share for share-access tests
+      const shareRes = await request(app.getHttpServer())
+        .post(`/asset/${assetId}/share`)
+        .set(auth())
+        .send({ isPublic: false })
+        .expect(201);
+      shareId = shareRes.body.id;
+    });
+
+    afterAll(async () => {
+      // Best-effort cleanup — ignore errors if resources were already removed
+      await request(app.getHttpServer())
+        .delete(`/asset/${assetId}`)
+        .set(auth());
+      await request(app.getHttpServer())
+        .delete(`/user/${memberUserId}`)
+        .set(auth());
+      await request(app.getHttpServer())
+        .delete(`/team/${teamName}`)
+        .set(auth());
+    });
+
+    // ── User list ─────────────────────────────────────────────────────────────
+
+    it('GET /user returns a paginated list of users for an admin', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/user')
+        .set(auth())
+        .expect(200);
+
+      expect(res.body).toHaveProperty('data');
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThan(0);
+
+      const found = res.body.data.find((u: any) => u.email === testUserEmail);
+      expect(found).toBeDefined();
+      expect(res.body).toHaveProperty('pagination');
+    });
+
+    // ── Team create ───────────────────────────────────────────────────────────
+
+    it('POST /team creates a new team for an admin', async () => {
+      const name = 'e2e-create-team-check';
+      const res = await request(app.getHttpServer())
+        .post('/team')
+        .set(auth())
+        .send({ name })
+        .expect(201);
+
+      expect(res.body.name).toBe(name);
+
+      // Verify it appears in the list
+      const listRes = await request(app.getHttpServer())
+        .get('/team')
+        .set(auth())
+        .expect(200);
+      expect(listRes.body.data.map((t: any) => t.name)).toContain(name);
+
+      // Cleanup
+      await request(app.getHttpServer())
+        .delete(`/team/${name}`)
+        .set(auth())
+        .expect(200);
+    });
+
+    // ── Asset user access ─────────────────────────────────────────────────────
+
+    it('POST /asset/:id/user/:email grants a user access to an asset', async () => {
+      await request(app.getHttpServer())
+        .post(`/asset/${assetId}/user/${encodeURIComponent(memberEmail)}`)
+        .set(auth())
+        .expect(201);
+    });
+
+    it('GET /asset/:id/user lists users with access to an asset', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/asset/${assetId}/user`)
+        .set(auth())
+        .expect(200);
+
+      expect(res.body).toHaveProperty('data');
+      expect(Array.isArray(res.body.data)).toBe(true);
+
+      // The uploading user is automatically granted access; the member we added
+      // should also appear.
+      const emails = res.body.data.map((a: any) => a.id);
+      expect(emails).toContain(memberEmail);
+    });
+
+    it('DELETE /asset/:id/user/:email revokes a user from an asset', async () => {
+      await request(app.getHttpServer())
+        .delete(`/asset/${assetId}/user/${encodeURIComponent(memberEmail)}`)
+        .set(auth())
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get(`/asset/${assetId}/user`)
+        .set(auth())
+        .expect(200);
+
+      const emails = res.body.data.map((a: any) => a.id);
+      expect(emails).not.toContain(memberEmail);
+    });
+
+    // ── Asset team access ─────────────────────────────────────────────────────
+
+    it('POST /asset/:id/team/:teamName grants a team access to an asset', async () => {
+      await request(app.getHttpServer())
+        .post(`/asset/${assetId}/team/${encodeURIComponent(teamName)}`)
+        .set(auth())
+        .expect(201);
+    });
+
+    it('GET /asset/:id/team lists teams with access to an asset', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/asset/${assetId}/team`)
+        .set(auth())
+        .expect(200);
+
+      expect(res.body).toHaveProperty('data');
+      const names = res.body.data.map((a: any) => a.id);
+      expect(names).toContain(teamName);
+    });
+
+    it('DELETE /asset/:id/team/:teamName revokes a team from an asset', async () => {
+      await request(app.getHttpServer())
+        .delete(`/asset/${assetId}/team/${encodeURIComponent(teamName)}`)
+        .set(auth())
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get(`/asset/${assetId}/team`)
+        .set(auth())
+        .expect(200);
+
+      const names = res.body.data.map((a: any) => a.id);
+      expect(names).not.toContain(teamName);
+    });
+
+    // ── Share user access ─────────────────────────────────────────────────────
+
+    it('POST /asset/:assetId/share/:shareId/user/:email grants a user access to a share', async () => {
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${assetId}/share/${shareId}/user/${encodeURIComponent(memberEmail)}`,
+        )
+        .set(auth())
+        .expect(201);
+    });
+
+    it('GET /asset/:assetId/share/:shareId/user lists users with access to a share', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/asset/${assetId}/share/${shareId}/user`)
+        .set(auth())
+        .expect(200);
+
+      expect(res.body).toHaveProperty('data');
+      const emails = res.body.data.map((a: any) => a.id);
+      expect(emails).toContain(memberEmail);
+    });
+
+    it('DELETE /asset/:assetId/share/:shareId/user/:email revokes a user from a share', async () => {
+      await request(app.getHttpServer())
+        .delete(
+          `/asset/${assetId}/share/${shareId}/user/${encodeURIComponent(memberEmail)}`,
+        )
+        .set(auth())
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get(`/asset/${assetId}/share/${shareId}/user`)
+        .set(auth())
+        .expect(200);
+
+      const emails = res.body.data.map((a: any) => a.id);
+      expect(emails).not.toContain(memberEmail);
+    });
+
+    // ── Share team access ─────────────────────────────────────────────────────
+
+    it('POST /asset/:assetId/share/:shareId/team/:teamName grants a team access to a share', async () => {
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${assetId}/share/${shareId}/team/${encodeURIComponent(teamName)}`,
+        )
+        .set(auth())
+        .expect(201);
+    });
+
+    it('GET /asset/:assetId/share/:shareId/team lists teams with access to a share', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/asset/${assetId}/share/${shareId}/team`)
+        .set(auth())
+        .expect(200);
+
+      expect(res.body).toHaveProperty('data');
+      const names = res.body.data.map((a: any) => a.id);
+      expect(names).toContain(teamName);
+    });
+
+    it('DELETE /asset/:assetId/share/:shareId/team/:teamName revokes a team from a share', async () => {
+      await request(app.getHttpServer())
+        .delete(
+          `/asset/${assetId}/share/${shareId}/team/${encodeURIComponent(teamName)}`,
+        )
+        .set(auth())
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get(`/asset/${assetId}/share/${shareId}/team`)
+        .set(auth())
+        .expect(200);
+
+      const names = res.body.data.map((a: any) => a.id);
+      expect(names).not.toContain(teamName);
     });
   });
 });

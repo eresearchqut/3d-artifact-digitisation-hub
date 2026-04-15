@@ -3,11 +3,13 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CognitoIdentityProviderClient,
   CreateGroupCommand,
+  CreateGroupCommandOutput,
   DeleteGroupCommand,
   AdminAddUserToGroupCommand,
   AdminRemoveUserFromGroupCommand,
@@ -42,15 +44,31 @@ export class TeamService {
 
   async create(team: Team): Promise<Team> {
     assertNotReserved(team.name);
+    // Cognito GroupName pattern: no spaces or special characters outside [\p{L}\p{M}\p{S}\p{N}\p{P}]
+    if (/\s/.test(team.name)) {
+      throw new BadRequestException(
+        'Team name must not contain spaces. Use hyphens or underscores instead (e.g. "QUT-DRI").',
+      );
+    }
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
 
-    const response = await this.cognitoClient.send(
-      new CreateGroupCommand({
-        UserPoolId: userPoolId,
-        GroupName: team.name,
-        Description: team.description,
-      }),
-    );
+    let response: CreateGroupCommandOutput;
+    try {
+      response = await this.cognitoClient.send(
+        new CreateGroupCommand({
+          UserPoolId: userPoolId,
+          GroupName: team.name,
+          Description: team.description,
+        }),
+      );
+    } catch (err: any) {
+      if (err.name === 'InvalidParameterException') {
+        throw new BadRequestException(
+          `Invalid team name: ${err.message ?? 'Team name contains characters not allowed by Cognito.'}`,
+        );
+      }
+      throw err;
+    }
 
     const {
       Group: { GroupName, Description },
@@ -62,18 +80,17 @@ export class TeamService {
     };
   }
 
-  async findAll(
-    limit = 10,
-    cursor?: string,
-  ): Promise<PaginatedResponse<Team>> {
+  async findAll(limit = 10, cursor?: string): Promise<PaginatedResponse<Team>> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
+    // Cognito ListGroups hard-caps Limit at 60
+    const cognitoLimit = Math.min(limit, 60);
 
     // Fetch the requested page and count all groups in parallel
     const [response, totalCount] = await Promise.all([
       this.cognitoClient.send(
         new ListGroupsCommand({
           UserPoolId: userPoolId,
-          Limit: limit,
+          Limit: cognitoLimit,
           NextToken: cursor,
         }),
       ),
@@ -82,7 +99,11 @@ export class TeamService {
         let token: string | undefined;
         do {
           const r = await this.cognitoClient.send(
-            new ListGroupsCommand({ UserPoolId: userPoolId, Limit: 60, NextToken: token }),
+            new ListGroupsCommand({
+              UserPoolId: userPoolId,
+              Limit: 60,
+              NextToken: token,
+            }),
           );
           count += (r.Groups || []).filter(
             (g) => g.GroupName?.toLowerCase() !== RESERVED_GROUP,
@@ -271,7 +292,7 @@ export class TeamService {
       new ListUsersInGroupCommand({
         UserPoolId: userPoolId,
         GroupName: teamId,
-        Limit: limit,
+        Limit: Math.min(limit, 60),
         NextToken: cursor,
       }),
     );

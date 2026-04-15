@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetService, shareService, userService, teamService } from '../services/api.service';
 import { Share, ShareAccess, AssetAccess, AssetStatus } from '../services/types';
+import { useIsAdmin } from '../hooks/useIsAdmin';
 import {
   Box,
   Button,
@@ -48,6 +49,7 @@ function AccessSection({
   options,
   onAdd,
   onRemove,
+  isAdmin,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -57,6 +59,7 @@ function AccessSection({
   options: { label: string; value: string }[];
   onAdd: (id: string) => void;
   onRemove: (id: string) => void;
+  isAdmin: boolean;
 }) {
   const [selected, setSelected] = useState('');
 
@@ -90,27 +93,29 @@ function AccessSection({
         {icon}
         <Text fontWeight="semibold">{title}</Text>
       </HStack>
-      <HStack>
-        <select
-          value={selected}
-          onChange={(e) => setSelected(e.target.value)}
-          disabled={options.length === 0}
-          style={{ flex: 1, fontSize: '0.875rem', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--chakra-colors-border)', background: 'var(--chakra-colors-bg)', color: 'var(--chakra-colors-fg)' }}
-        >
-          <option value="">{options.length === 0 ? `No ${placeholder} available` : `Select ${placeholder}…`}</option>
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        <Button
-          size="sm"
-          colorPalette="blue"
-          disabled={!selected}
-          onClick={() => { onAdd(selected); setSelected(''); }}
-        >
-          <Plus /> Add
-        </Button>
-      </HStack>
+      {isAdmin && (
+        <HStack>
+          <select
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            disabled={options.length === 0}
+            style={{ flex: 1, fontSize: '0.875rem', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--chakra-colors-border)', background: 'var(--chakra-colors-bg)', color: 'var(--chakra-colors-fg)' }}
+          >
+            <option value="">{options.length === 0 ? `No ${placeholder} available` : `Select ${placeholder}…`}</option>
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            colorPalette="blue"
+            disabled={!selected}
+            onClick={() => { onAdd(selected); setSelected(''); }}
+          >
+            <Plus /> Add
+          </Button>
+        </HStack>
+      )}
       <DataTable
         data={accessData as AssetAccess[]}
         columns={columns}
@@ -129,12 +134,14 @@ function ShareRow({
   allUsers,
   allTeams,
   onRevoke,
+  isAdmin,
 }: {
   assetId: string;
   share: Share;
   allUsers: { label: string; value: string }[];
   allTeams: { label: string; value: string }[];
   onRevoke: (id: string) => void;
+  isAdmin: boolean;
 }) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(false);
@@ -227,6 +234,7 @@ function ShareRow({
             options={allUsers.filter((u) => !(userAccess?.data ?? []).some((a) => a.id === u.value))}
             onAdd={(email) => addUserMutation.mutate(email)}
             onRemove={(email) => removeUserMutation.mutate(email)}
+            isAdmin={isAdmin}
           />
           <AccessSection
             title="Teams"
@@ -237,6 +245,7 @@ function ShareRow({
             options={allTeams.filter((t) => !(teamAccess?.data ?? []).some((a) => a.id === t.value))}
             onAdd={(name) => addTeamMutation.mutate(name)}
             onRemove={(name) => removeTeamMutation.mutate(name)}
+            isAdmin={isAdmin}
           />
         </Stack>
       )}
@@ -250,6 +259,7 @@ export const AssetDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const isAdmin = useIsAdmin();
 
   const [isCreateShareOpen, setIsCreateShareOpen] = useState(false);
   const [durationValue, setDurationValue] = useState<string>('');
@@ -311,11 +321,13 @@ export const AssetDetailPage: React.FC = () => {
   const { data: allUsersData } = useQuery({
     queryKey: ['users'],
     queryFn: () => userService.findAll(100),
+    enabled: isAdmin,
   });
 
   const { data: allTeamsData } = useQuery({
     queryKey: ['teams'],
     queryFn: () => teamService.findAll(100),
+    enabled: isAdmin,
   });
 
   const allUserOptions = (allUsersData?.data ?? []).map((u) => ({ label: u.email, value: u.email }));
@@ -452,6 +464,7 @@ export const AssetDetailPage: React.FC = () => {
               options={availableUserOptions}
               onAdd={(email) => addUserMutation.mutate(email)}
               onRemove={(email) => removeUserMutation.mutate(email)}
+              isAdmin={isAdmin}
             />
             <Separator />
             <AccessSection
@@ -463,6 +476,7 @@ export const AssetDetailPage: React.FC = () => {
               options={availableTeamOptions}
               onAdd={(name) => addTeamMutation.mutate(name)}
               onRemove={(name) => removeTeamMutation.mutate(name)}
+              isAdmin={isAdmin}
             />
           </Stack>
         </Tabs.Content>
@@ -487,6 +501,7 @@ export const AssetDetailPage: React.FC = () => {
                 allUsers={allUserOptions}
                 allTeams={allTeamOptions}
                 onRevoke={(shareId) => revokeShareMutation.mutate(shareId)}
+                isAdmin={isAdmin}
               />
             ))}
           </Stack>

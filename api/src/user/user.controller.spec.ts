@@ -97,7 +97,9 @@ describe('UserController', () => {
 
   describe('remove', () => {
     it('should remove a user', async () => {
-      expect(await controller.remove('1', { user: { sub: 'caller-sub' } } as any)).toBeUndefined();
+      expect(
+        await controller.remove('1', { user: { sub: 'caller-sub' } } as any),
+      ).toBeUndefined();
       expect(service.remove).toHaveBeenCalledWith('1', 'caller-sub');
     });
   });
