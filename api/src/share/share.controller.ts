@@ -5,7 +5,6 @@ import {
   Delete,
   Param,
   Body,
-  Query,
   HttpCode,
   Req,
   UseGuards,
@@ -16,7 +15,6 @@ import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiQuery,
   ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger';
@@ -24,10 +22,6 @@ import { Request } from 'express';
 import type { Response } from 'express';
 import { ShareService } from './share.service';
 import { Share, ShareAccess, CreateShareDto } from './share.model';
-import {
-  ApiPaginatedResponse,
-  PaginatedResponse,
-} from '../utils/pagination.model';
 import { AuthGuard, OptionalAuthGuard } from '../auth/auth.guard';
 import { JwtPayload } from '../auth/auth.constants';
 
@@ -52,19 +46,9 @@ export class ShareController {
 
   @Get()
   @ApiOperation({ summary: 'List shares for an asset' })
-  @ApiPaginatedResponse(Share)
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
-  findAll(
-    @Param('assetId') assetId: string,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ): Promise<PaginatedResponse<Share>> {
-    return this.shareService.findAll(
-      assetId,
-      limit ? parseInt(limit, 10) : 10,
-      cursor,
-    );
+  @ApiResponse({ status: 200, type: [Share] })
+  findAll(@Param('assetId') assetId: string): Promise<Share[]> {
+    return this.shareService.findAll(assetId);
   }
 
   @Get(':shareId')
@@ -92,21 +76,12 @@ export class ShareController {
 
   @Get(':shareId/user')
   @ApiOperation({ summary: 'List users with access to a share' })
-  @ApiPaginatedResponse(ShareAccess)
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
+  @ApiResponse({ status: 200, type: [ShareAccess] })
   listShareUserAccess(
     @Param('assetId') assetId: string,
     @Param('shareId') shareId: string,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ): Promise<PaginatedResponse<ShareAccess>> {
-    return this.shareService.listShareUserAccess(
-      assetId,
-      shareId,
-      limit ? parseInt(limit, 10) : 10,
-      cursor,
-    );
+  ): Promise<ShareAccess[]> {
+    return this.shareService.listShareUserAccess(assetId, shareId);
   }
 
   @Post(':shareId/user/:email')
@@ -144,21 +119,12 @@ export class ShareController {
 
   @Get(':shareId/team')
   @ApiOperation({ summary: 'List teams with access to a share' })
-  @ApiPaginatedResponse(ShareAccess)
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
+  @ApiResponse({ status: 200, type: [ShareAccess] })
   listShareTeamAccess(
     @Param('assetId') assetId: string,
     @Param('shareId') shareId: string,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ): Promise<PaginatedResponse<ShareAccess>> {
-    return this.shareService.listShareTeamAccess(
-      assetId,
-      shareId,
-      limit ? parseInt(limit, 10) : 10,
-      cursor,
-    );
+  ): Promise<ShareAccess[]> {
+    return this.shareService.listShareTeamAccess(assetId, shareId);
   }
 
   @Post(':shareId/team/:teamName')

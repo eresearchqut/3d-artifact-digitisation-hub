@@ -1,4 +1,4 @@
-import { PaginatedResponse, Asset, AssetAccess, Share, ShareAccess, Team, User } from './types';
+import { Asset, AssetAccess, Share, ShareAccess, Team, User } from './types';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 // BASE_URL is set at startup by App.tsx once runtime-config.json is resolved.
@@ -51,8 +51,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const userService = {
-  findAll: (limit: number = 10, cursor?: string): Promise<PaginatedResponse<User>> =>
-    request<PaginatedResponse<User>>(`/user?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  findAll: (): Promise<User[]> =>
+    request<User[]>('/user'),
   findOne: (id: string): Promise<User> => request<User>(`/user/${id}`),
   create: (data: Partial<User>): Promise<User> =>
     request<User>('/user', { method: 'POST', body: JSON.stringify(data) }),
@@ -66,16 +66,16 @@ export const userService = {
 };
 
 export const teamService = {
-  findAll: (limit: number = 10, cursor?: string): Promise<PaginatedResponse<Team>> =>
-    request<PaginatedResponse<Team>>(`/team?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  findAll: (): Promise<Team[]> =>
+    request<Team[]>('/team'),
   findOne: (id: string): Promise<Team> => request<Team>(`/team/${id}`),
   create: (data: Partial<Team>): Promise<Team> =>
     request<Team>('/team', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<Team>): Promise<Team> =>
     request<Team>(`/team/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   remove: (id: string): Promise<void> => request<void>(`/team/${id}`, { method: 'DELETE' }),
-  listUsers: (id: string, limit: number = 10, cursor?: string): Promise<PaginatedResponse<User>> =>
-    request<PaginatedResponse<User>>(`/team/${id}/user?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  listUsers: (id: string): Promise<User[]> =>
+    request<User[]>(`/team/${id}/user`),
   addUser: (id: string, userId: string): Promise<void> =>
     request<void>(`/team/${id}/user/${userId}`, { method: 'POST' }),
   removeUser: (id: string, userId: string): Promise<void> =>
@@ -83,23 +83,22 @@ export const teamService = {
 };
 
 export const assetService = {
-  findAll: (limit: number = 10, cursor?: string): Promise<PaginatedResponse<Asset>> =>
-    request<PaginatedResponse<Asset>>(`/asset?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  findAll: (): Promise<Asset[]> =>
+    request<Asset[]>('/asset'),
   findOne: (id: string): Promise<Asset> => request<Asset>(`/asset/${id}`),
   update: (id: string, data: Partial<Asset>): Promise<Asset> =>
     request<Asset>(`/asset/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   remove: (id: string): Promise<void> => request<void>(`/asset/${id}`, { method: 'DELETE' }),
   generateUploadUrl: (metadata?: Record<string, string>): Promise<{ uploadUrl: string, id: string }> =>
     request<{ uploadUrl: string, id: string }>(`/asset/upload`, { method: 'POST', body: JSON.stringify({ metadata }) }),
-  // ─── Asset ownership ───────────────────────────────────────────────────
-  listUserAccess: (id: string, limit = 100, cursor?: string): Promise<PaginatedResponse<AssetAccess>> =>
-    request<PaginatedResponse<AssetAccess>>(`/asset/${id}/user?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  listUserAccess: (id: string): Promise<AssetAccess[]> =>
+    request<AssetAccess[]>(`/asset/${id}/user`),
   addUserAccess: (id: string, email: string): Promise<void> =>
     request<void>(`/asset/${id}/user/${encodeURIComponent(email)}`, { method: 'POST' }),
   removeUserAccess: (id: string, email: string): Promise<void> =>
     request<void>(`/asset/${id}/user/${encodeURIComponent(email)}`, { method: 'DELETE' }),
-  listTeamAccess: (id: string, limit = 100, cursor?: string): Promise<PaginatedResponse<AssetAccess>> =>
-    request<PaginatedResponse<AssetAccess>>(`/asset/${id}/team?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  listTeamAccess: (id: string): Promise<AssetAccess[]> =>
+    request<AssetAccess[]>(`/asset/${id}/team`),
   addTeamAccess: (id: string, teamName: string): Promise<void> =>
     request<void>(`/asset/${id}/team/${encodeURIComponent(teamName)}`, { method: 'POST' }),
   removeTeamAccess: (id: string, teamName: string): Promise<void> =>
@@ -107,21 +106,20 @@ export const assetService = {
 };
 
 export const shareService = {
-  findAll: (assetId: string, limit = 100, cursor?: string): Promise<PaginatedResponse<Share>> =>
-    request<PaginatedResponse<Share>>(`/asset/${assetId}/share?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  findAll: (assetId: string): Promise<Share[]> =>
+    request<Share[]>(`/asset/${assetId}/share`),
   create: (assetId: string, data: { durationValue?: number; durationUnit?: string; isPublic?: boolean }): Promise<Share> =>
     request<Share>(`/asset/${assetId}/share`, { method: 'POST', body: JSON.stringify(data) }),
   remove: (assetId: string, shareId: string): Promise<void> =>
     request<void>(`/asset/${assetId}/share/${shareId}`, { method: 'DELETE' }),
-  // ─── Share access ──────────────────────────────────────────────────────
-  listUserAccess: (assetId: string, shareId: string, limit = 100, cursor?: string): Promise<PaginatedResponse<ShareAccess>> =>
-    request<PaginatedResponse<ShareAccess>>(`/asset/${assetId}/share/${shareId}/user?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  listUserAccess: (assetId: string, shareId: string): Promise<ShareAccess[]> =>
+    request<ShareAccess[]>(`/asset/${assetId}/share/${shareId}/user`),
   addUserAccess: (assetId: string, shareId: string, email: string): Promise<void> =>
     request<void>(`/asset/${assetId}/share/${shareId}/user/${encodeURIComponent(email)}`, { method: 'POST' }),
   removeUserAccess: (assetId: string, shareId: string, email: string): Promise<void> =>
     request<void>(`/asset/${assetId}/share/${shareId}/user/${encodeURIComponent(email)}`, { method: 'DELETE' }),
-  listTeamAccess: (assetId: string, shareId: string, limit = 100, cursor?: string): Promise<PaginatedResponse<ShareAccess>> =>
-    request<PaginatedResponse<ShareAccess>>(`/asset/${assetId}/share/${shareId}/team?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  listTeamAccess: (assetId: string, shareId: string): Promise<ShareAccess[]> =>
+    request<ShareAccess[]>(`/asset/${assetId}/share/${shareId}/team`),
   addTeamAccess: (assetId: string, shareId: string, teamName: string): Promise<void> =>
     request<void>(`/asset/${assetId}/share/${shareId}/team/${encodeURIComponent(teamName)}`, { method: 'POST' }),
   removeTeamAccess: (assetId: string, shareId: string, teamName: string): Promise<void> =>

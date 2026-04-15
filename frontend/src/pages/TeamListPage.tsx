@@ -9,7 +9,7 @@ import { toaster } from '../components/ui/toaster';
 import { getCurrentUser } from 'aws-amplify/auth';
 import { usePageTour } from '../hooks/usePageTour';
 import { TEAM_LIST_TOUR_STEPS } from '../constants/tourSteps';
-import { usePagination } from '../hooks/usePagination';
+import { useClientPagination } from '../hooks/useClientPagination';
 
 interface Team {
   name: string;
@@ -32,16 +32,16 @@ export const TeamListPage: React.FC = () => {
   }, []);
 
   const queryClient = useQueryClient();
-  const { limit, cursor, hasPrev, goNext, goPrev, reset: resetPagination, pageNumber, changeLimit } = usePagination(10);
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['teams', { limit, cursor }],
-    queryFn: () => teamService.findAll(limit, cursor),
+  const { data: allTeams, isLoading, error } = useQuery({
+    queryKey: ['teams'],
+    queryFn: () => teamService.findAll(),
   });
+  const { page, pageNumber, pageSize, total, hasPrev, hasMore, goNext, goPrev, changePageSize } =
+    useClientPagination(allTeams, 10);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => teamService.remove(id),
     onSuccess: () => {
-      resetPagination();
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       toaster.create({ type: 'success', title: 'Team deleted' });
     },
@@ -59,7 +59,6 @@ export const TeamListPage: React.FC = () => {
       return team;
     },
     onSuccess: () => {
-      resetPagination();
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       toaster.create({ type: 'success', title: 'Team created' });
     },
@@ -148,21 +147,21 @@ export const TeamListPage: React.FC = () => {
 
       <Box id="team-table">
         <DataTable
-          data={data?.data}
+          data={page}
           columns={columns}
           keyExtractor={(team) => team.name}
           emptyMessage="No teams found. Create your first one!"
           pagination={{
             hasPrev,
-            hasMore: !!data?.pagination.has_more,
+            hasMore,
             onPrev: goPrev,
-            onNext: () => data?.pagination.next_cursor && goNext(data.pagination.next_cursor),
-            count: data?.data?.length ?? 0,
-            total: data?.pagination.total,
+            onNext: goNext,
+            count: page.length,
+            total,
             pageNumber,
-            pageSize: limit,
+            pageSize,
             pageSizeOptions: [10, 25, 50, 100],
-            onPageSizeChange: changeLimit,
+            onPageSizeChange: changePageSize,
             isLoading,
           }}
         />

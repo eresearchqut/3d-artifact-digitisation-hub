@@ -6,23 +6,17 @@ import {
   Patch,
   Param,
   Delete,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { TeamService } from './team.service';
 import { Team } from './team.model';
 import { User } from '../user/user.model';
-import {
-  ApiPaginatedResponse,
-  PaginatedResponse,
-} from '../utils/pagination.model';
 import { AdminGuard } from '../auth/auth.guard';
 
 @ApiTags('team')
@@ -41,14 +35,9 @@ export class TeamController {
 
   @Get()
   @ApiOperation({ summary: 'Get all teams' })
-  @ApiPaginatedResponse(Team)
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
-  findAll(
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ): Promise<PaginatedResponse<Team>> {
-    return this.teamService.findAll(limit ? parseInt(limit, 10) : 10, cursor);
+  @ApiResponse({ status: 200, type: [Team] })
+  findAll(): Promise<Team[]> {
+    return this.teamService.findAll();
   }
 
   @Get(':id')
@@ -77,19 +66,9 @@ export class TeamController {
 
   @Get(':id/user')
   @ApiOperation({ summary: 'List users in team' })
-  @ApiPaginatedResponse(User)
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
-  listUsers(
-    @Param('id') id: string,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ): Promise<PaginatedResponse<User>> {
-    return this.teamService.listUsers(
-      id,
-      limit ? parseInt(limit, 10) : 10,
-      cursor,
-    );
+  @ApiResponse({ status: 200, type: [User] })
+  listUsers(@Param('id') id: string): Promise<User[]> {
+    return this.teamService.listUsers(id);
   }
 
   @Post(':id/user/:userId')

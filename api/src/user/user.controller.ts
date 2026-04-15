@@ -6,7 +6,6 @@ import {
   Patch,
   Param,
   Delete,
-  Query,
   Put,
   UseGuards,
   Req,
@@ -15,15 +14,10 @@ import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { User } from './user.model';
-import {
-  ApiPaginatedResponse,
-  PaginatedResponse,
-} from '../utils/pagination.model';
 import { AdminGuard } from '../auth/auth.guard';
 
 @ApiTags('user')
@@ -42,14 +36,9 @@ export class UserController {
 
   @Get()
   @ApiOperation({ summary: 'Get all users' })
-  @ApiPaginatedResponse(User)
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
-  findAll(
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ): Promise<PaginatedResponse<User>> {
-    return this.userService.findAll(limit ? parseInt(limit, 10) : 10, cursor);
+  @ApiResponse({ status: 200, type: [User] })
+  findAll(): Promise<User[]> {
+    return this.userService.findAll();
   }
 
   @Get(':id')

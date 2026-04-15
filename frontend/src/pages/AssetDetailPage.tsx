@@ -229,9 +229,9 @@ function ShareRow({
             title="Users"
             icon={<Users size={14} />}
             placeholder="user"
-            accessData={userAccess?.data ?? []}
+            accessData={userAccess ?? []}
             isLoading={false}
-            options={allUsers.filter((u) => !(userAccess?.data ?? []).some((a) => a.id === u.value))}
+            options={allUsers.filter((u) => !(userAccess ?? []).some((a) => a.id === u.value))}
             onAdd={(email) => addUserMutation.mutate(email)}
             onRemove={(email) => removeUserMutation.mutate(email)}
             isAdmin={isAdmin}
@@ -240,9 +240,9 @@ function ShareRow({
             title="Teams"
             icon={<Shield size={14} />}
             placeholder="team"
-            accessData={teamAccess?.data ?? []}
+            accessData={teamAccess ?? []}
             isLoading={false}
-            options={allTeams.filter((t) => !(teamAccess?.data ?? []).some((a) => a.id === t.value))}
+            options={allTeams.filter((t) => !(teamAccess ?? []).some((a) => a.id === t.value))}
             onAdd={(name) => addTeamMutation.mutate(name)}
             onRemove={(name) => removeTeamMutation.mutate(name)}
             isAdmin={isAdmin}
@@ -320,24 +320,24 @@ export const AssetDetailPage: React.FC = () => {
 
   const { data: allUsersData } = useQuery({
     queryKey: ['users'],
-    queryFn: () => userService.findAll(100),
+    queryFn: () => userService.findAll(),
     enabled: isAdmin,
   });
 
   const { data: allTeamsData } = useQuery({
     queryKey: ['teams'],
-    queryFn: () => teamService.findAll(100),
+    queryFn: () => teamService.findAll(),
     enabled: isAdmin,
   });
 
-  const allUserOptions = (allUsersData?.data ?? []).map((u) => ({ label: u.email, value: u.email }));
-  const allTeamOptions = (allTeamsData?.data ?? []).map((t) => ({ label: t.name, value: t.name }));
+  const allUserOptions = (allUsersData ?? []).map((u) => ({ label: u.email, value: u.email }));
+  const allTeamOptions = (allTeamsData ?? []).map((t) => ({ label: t.name, value: t.name }));
 
   const availableUserOptions = allUserOptions.filter(
-    (u) => !(userAccess?.data ?? []).some((a) => a.id === u.value),
+    (u) => !(userAccess ?? []).some((a) => a.id === u.value),
   );
   const availableTeamOptions = allTeamOptions.filter(
-    (t) => !(teamAccess?.data ?? []).some((a) => a.id === t.value),
+    (t) => !(teamAccess ?? []).some((a) => a.id === t.value),
   );
 
   const createShareMutation = useMutation({
@@ -459,7 +459,7 @@ export const AssetDetailPage: React.FC = () => {
               title="Users"
               icon={<Users size={16} />}
               placeholder="user"
-              accessData={userAccess?.data ?? []}
+              accessData={userAccess ?? []}
               isLoading={false}
               options={availableUserOptions}
               onAdd={(email) => addUserMutation.mutate(email)}
@@ -471,7 +471,7 @@ export const AssetDetailPage: React.FC = () => {
               title="Teams"
               icon={<Shield size={16} />}
               placeholder="team"
-              accessData={teamAccess?.data ?? []}
+              accessData={teamAccess ?? []}
               isLoading={false}
               options={availableTeamOptions}
               onAdd={(name) => addTeamMutation.mutate(name)}
@@ -490,10 +490,10 @@ export const AssetDetailPage: React.FC = () => {
                 <Plus /> Create Share
               </Button>
             </Flex>
-            {shares?.data.length === 0 && (
+            {shares?.length === 0 && (
               <Box textAlign="center" py={6} color="fg.muted">No shares yet.</Box>
             )}
-            {shares?.data.map((share) => (
+            {shares?.map((share) => (
               <ShareRow
                 key={share.id}
                 assetId={id!}

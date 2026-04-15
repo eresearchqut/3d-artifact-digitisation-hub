@@ -71,32 +71,23 @@ describe('TeamService', () => {
   });
 
   describe('findAll', () => {
-    it('should return a paginated list of teams', async () => {
-      // Page data
+    it('should return a list of teams', async () => {
       mockCognitoClient.send.mockResolvedValueOnce({
         Groups: [
           { GroupName: 'team-1', Description: 'Team 1' },
           { GroupName: 'team-2', Description: 'Team 2' },
         ],
-        NextToken: 'token',
-      });
-      // Count scan (all groups, no NextToken)
-      mockCognitoClient.send.mockResolvedValueOnce({
-        Groups: [{ GroupName: 'team-1' }, { GroupName: 'team-2' }],
       });
 
-      const result = await service.findAll(2);
-      expect(result.data).toHaveLength(2);
-      expect(result.data[0].name).toBe('team-1');
-      expect(result.data[0].description).toBe('Team 1');
-      expect(result.pagination.limit).toBe(2);
-      expect(result.pagination.has_more).toBe(true);
-      expect(result.pagination.next_cursor).toBe('token');
+      const result = await service.findAll();
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe('team-1');
+      expect(result[0].description).toBe('Team 1');
 
       const { input } = (cognitoClient.send as jest.Mock).mock.calls[0][0];
       expect(input).toEqual({
         UserPoolId: 'test-user-pool-id',
-        Limit: 2,
+        Limit: 60,
         NextToken: undefined,
       });
     });
@@ -254,13 +245,11 @@ describe('TeamService', () => {
             Attributes: [{ Name: 'email', Value: 'u1@example.com' }],
           },
         ],
-        NextToken: 'token',
       });
 
-      const result = await service.listUsers('team-1', 2);
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0].id).toBe('user-1');
-      expect(result.pagination.has_more).toBe(true);
+      const result = await service.listUsers('team-1');
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('user-1');
     });
   });
 });

@@ -85,8 +85,8 @@ describe('UserService', () => {
   });
 
   describe('findAll', () => {
-    it('should return a paginated list of users', async () => {
-      // ListUsersCommand
+    it('should return a list of users', async () => {
+      // ListUsersCommand (all pages)
       mockCognitoClient.send.mockResolvedValueOnce({
         Users: [
           {
@@ -98,28 +98,20 @@ describe('UserService', () => {
             Attributes: [{ Name: 'email', Value: 'user2@example.com' }],
           },
         ],
-        PaginationToken: 'next-token',
       });
       // ListUsersInGroupCommand (admins)
       mockCognitoClient.send.mockResolvedValueOnce({ Users: [] });
-      // DescribeUserPoolCommand
-      mockCognitoClient.send.mockResolvedValueOnce({
-        UserPool: { EstimatedNumberOfUsers: 2 },
-      });
 
-      const result = await service.findAll(2);
+      const result = await service.findAll();
 
-      expect(result.data).toHaveLength(2);
-      expect(result.data[0].id).toBe('user-1');
-      expect(result.data[0].email).toBe('user1@example.com');
-      expect(result.pagination.limit).toBe(2);
-      expect(result.pagination.has_more).toBe(true);
-      expect(result.pagination.next_cursor).toBe('next-token');
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe('user-1');
+      expect(result[0].email).toBe('user1@example.com');
 
       const { input } = (cognitoClient.send as jest.Mock).mock.calls[0][0];
       expect(input).toEqual({
         UserPoolId: 'test-user-pool-id',
-        Limit: 2,
+        Limit: 60,
         PaginationToken: undefined,
       });
     });

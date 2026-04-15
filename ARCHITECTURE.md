@@ -15,7 +15,8 @@ A platform that enables the management of 3d digital assets. 100% open source.
   - Asset access is stored as separate DynamoDB items sharing the asset's partition key: PK=`ASSET#<id>`, SK=`USER#<user_email>` or `TEAM#<team_name>`, with `grantedAt` and `grantedBy` fields
   - The uploading user is automatically granted access (`grantedBy` set to themselves)
   - Additional users and teams can be granted or revoked access at any time with no minimum-owner constraint
-  - The asset listing page displays all assets regardless of access
+  - The asset listing page will include any asset that is granted to you or granted to a team that you are a member of
+  - Administrators can list all assets
   - When an asset is deleted, all DynamoDB items under `ASSET#<id>` are removed (main record, access records, share records), all share access records under each `SHARE#<id>` are removed, and the raw S3 file and viewer files are deleted
 
   **Asset status lifecycle** — the `status` field progresses through the following values:
@@ -103,28 +104,6 @@ Each resource is implemented using a singular naming convention and a simplified
 - **DynamoDB**: The API uses `@aws-sdk/util-dynamodb` to `marshall` and `unmarshall` objects when interacting with DynamoDB. This ensures consistent mapping between TypeScript objects and DynamoDB attributes.
 - **Deconstruction**: The project prefers the use of object deconstruction for assignments and function parameters to improve readability and maintainability.
 - **GUIDs**: The `create` method of each resource service generates a GUID (v4) for the resource `id`.
-
-#### Cursor-Based Pagination
-
-All list endpoints use cursor-based (keyset) pagination for stable, performant navigation. Do not use offset-based pagination.
-
-**Query parameters:**
-- `limit` (optional): Max records per page (default: 100, max: 1000)
-- `cursor` (optional): Opaque base64 cursor from previous response
-- `direction` (optional): `forward` (default) or `backward`
-
-**Response format:**
-```json
-{
-  "data": [...],
-  "pagination": {
-    "limit": 100,
-    "has_more": true,
-    "next_cursor": "MTczMzU4MDgwMDAwMDphYmMxMjM0...",
-    "prev_cursor": null
-  }
-}
-```
 
 ### Management Frontend
 

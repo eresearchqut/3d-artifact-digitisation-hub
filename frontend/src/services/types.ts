@@ -1,15 +1,3 @@
-export interface Pagination {
-  limit: number;
-  has_more: boolean;
-  next_cursor?: string;
-  total?: number;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  pagination: Pagination;
-}
-
 export interface Team {
   name: string;
   description?: string;

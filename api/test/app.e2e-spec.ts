@@ -284,7 +284,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       .set(auth)
       .expect(200);
 
-    expect(findAllResponse.body.data).toContainEqual(team);
+    expect(findAllResponse.body).toContainEqual(team);
 
     // 3. Find One (GET :id)
     const findOneResponse = await request(app.getHttpServer())
@@ -347,8 +347,8 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       .set(auth)
       .expect(200);
 
-    expect(listUsersResponse.body.data).toHaveLength(1);
-    expect(listUsersResponse.body.data[0]).toMatchObject({
+    expect(listUsersResponse.body).toHaveLength(1);
+    expect(listUsersResponse.body[0]).toMatchObject({
       id: user.id,
       email: user.email,
     });
@@ -392,7 +392,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
 
     // The findAll response includes isAdmin; use objectContaining so the
     // assertion is robust to additional fields added in future.
-    expect(findAllResponse.body.data).toContainEqual(
+    expect(findAllResponse.body).toContainEqual(
       expect.objectContaining({ id: user.id, email: user.email }),
     );
 
@@ -484,7 +484,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
       .get('/asset')
       .expect(200);
 
-    expect(findAllResponse.body.data).toEqual(
+    expect(findAllResponse.body).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id,
@@ -760,7 +760,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(adminAuth())
         .expect(200);
 
-      const adminUser = response.body.data.find(
+      const adminUser = response.body.find(
         (u: any) => u.email === testUserEmail,
       );
       expect(adminUser).toBeDefined();
@@ -823,7 +823,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(adminAuth())
         .expect(200);
 
-      const names: string[] = response.body.data.map((t: any) => t.name);
+      const names: string[] = response.body.map((t: any) => t.name);
       expect(names).not.toContain('administrators');
     });
   });
@@ -897,13 +897,11 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(auth())
         .expect(200);
 
-      expect(res.body).toHaveProperty('data');
-      expect(Array.isArray(res.body.data)).toBe(true);
-      expect(res.body.data.length).toBeGreaterThan(0);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThan(0);
 
-      const found = res.body.data.find((u: any) => u.email === testUserEmail);
+      const found = res.body.find((u: any) => u.email === testUserEmail);
       expect(found).toBeDefined();
-      expect(res.body).toHaveProperty('pagination');
     });
 
     // ── Team create ───────────────────────────────────────────────────────────
@@ -923,7 +921,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .get('/team')
         .set(auth())
         .expect(200);
-      expect(listRes.body.data.map((t: any) => t.name)).toContain(name);
+      expect(listRes.body.map((t: any) => t.name)).toContain(name);
 
       // Cleanup
       await request(app.getHttpServer())
@@ -947,12 +945,11 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(auth())
         .expect(200);
 
-      expect(res.body).toHaveProperty('data');
-      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(Array.isArray(res.body)).toBe(true);
 
       // The uploading user is automatically granted access; the member we added
       // should also appear.
-      const emails = res.body.data.map((a: any) => a.id);
+      const emails = res.body.map((a: any) => a.id);
       expect(emails).toContain(memberEmail);
     });
 
@@ -967,7 +964,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(auth())
         .expect(200);
 
-      const emails = res.body.data.map((a: any) => a.id);
+      const emails = res.body.map((a: any) => a.id);
       expect(emails).not.toContain(memberEmail);
     });
 
@@ -986,8 +983,8 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(auth())
         .expect(200);
 
-      expect(res.body).toHaveProperty('data');
-      const names = res.body.data.map((a: any) => a.id);
+      expect(Array.isArray(res.body)).toBe(true);
+      const names = res.body.map((a: any) => a.id);
       expect(names).toContain(teamName);
     });
 
@@ -1002,7 +999,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(auth())
         .expect(200);
 
-      const names = res.body.data.map((a: any) => a.id);
+      const names = res.body.map((a: any) => a.id);
       expect(names).not.toContain(teamName);
     });
 
@@ -1023,8 +1020,8 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(auth())
         .expect(200);
 
-      expect(res.body).toHaveProperty('data');
-      const emails = res.body.data.map((a: any) => a.id);
+      expect(Array.isArray(res.body)).toBe(true);
+      const emails = res.body.map((a: any) => a.id);
       expect(emails).toContain(memberEmail);
     });
 
@@ -1041,7 +1038,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(auth())
         .expect(200);
 
-      const emails = res.body.data.map((a: any) => a.id);
+      const emails = res.body.map((a: any) => a.id);
       expect(emails).not.toContain(memberEmail);
     });
 
@@ -1062,8 +1059,8 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(auth())
         .expect(200);
 
-      expect(res.body).toHaveProperty('data');
-      const names = res.body.data.map((a: any) => a.id);
+      expect(Array.isArray(res.body)).toBe(true);
+      const names = res.body.map((a: any) => a.id);
       expect(names).toContain(teamName);
     });
 
@@ -1080,7 +1077,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
         .set(auth())
         .expect(200);
 
-      const names = res.body.data.map((a: any) => a.id);
+      const names = res.body.map((a: any) => a.id);
       expect(names).not.toContain(teamName);
     });
   });

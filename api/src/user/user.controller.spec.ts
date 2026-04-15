@@ -11,14 +11,8 @@ describe('UserController', () => {
     create: jest.fn((user: User) => {
       return { id: '1', ...user };
     }),
-    findAll: jest.fn((limit?: number) => {
-      return {
-        data: [{ id: '1', email: 'test@example.com' }],
-        pagination: {
-          limit: limit || 100,
-          has_more: false,
-        },
-      };
+    findAll: jest.fn(() => {
+      return [{ id: '1', email: 'test@example.com' }];
     }),
     findOne: jest.fn((id: string) => {
       return { id, email: 'test@example.com' };
@@ -59,21 +53,10 @@ describe('UserController', () => {
   });
 
   describe('findAll', () => {
-    it('should return a paginated response of users', async () => {
-      const expectedResponse = {
-        data: [{ id: '1', email: 'test@example.com' }],
-        pagination: {
-          limit: 10,
-          has_more: false,
-        },
-      };
+    it('should return an array of users', async () => {
+      const expectedResponse = [{ id: '1', email: 'test@example.com' }];
       expect(await controller.findAll()).toEqual(expectedResponse);
-      expect(service.findAll).toHaveBeenCalledWith(10, undefined);
-    });
-
-    it('should pass limit and cursor to service', async () => {
-      await controller.findAll('50', 'some-cursor');
-      expect(service.findAll).toHaveBeenCalledWith(50, 'some-cursor');
+      expect(service.findAll).toHaveBeenCalledWith();
     });
   });
 

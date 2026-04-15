@@ -28,7 +28,6 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { Asset, AssetStatus } from './asset.model';
 import { AssetAccess } from './asset-access.model';
-import { PaginatedResponse } from '../utils/pagination.model';
 
 const VIEWER_FILES: Record<string, string> = {
   'index.html': 'text/html',
@@ -60,92 +59,36 @@ export class AssetService {
       this.configService.get<string>('DYNAMODB_TABLE_NAME') || '3d-hub-assets';
   }
 
-  async findAll(
-    limit = 10,
-    cursor?: string,
-  ): Promise<PaginatedResponse<Asset>> {
-    const startKey = cursor
-      ? JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8'))
-      : undefined;
-
+  async findAll(): Promise<Asset[]> {
     const filterExpression =
       'begins_with(PK, :prefix) AND begins_with(SK, :prefix)';
     const expressionValues = marshall({ ':prefix': 'ASSET#' });
 
-    // Run the count scan in parallel with the first data page
-    const [firstPage, countResp] = await Promise.all([
-      this.dynamoDBClient.send(
-        new ScanCommand({
-          TableName: this.tableName,
-          FilterExpression: filterExpression,
-          ExpressionAttributeValues: expressionValues,
-          Limit: limit * 5,
-          ExclusiveStartKey: startKey,
-        }),
-      ),
-      this.dynamoDBClient.send(
-        new ScanCommand({
-          TableName: this.tableName,
-          FilterExpression: filterExpression,
-          ExpressionAttributeValues: expressionValues,
-          Select: 'COUNT',
-        }),
-      ),
-    ]);
-
-    // DynamoDB's Limit counts evaluated items, not returned items. Keep scanning
-    // until we have `limit` matching records or the table is exhausted.
-    const collected = [...(firstPage.Items || [])];
-    let lastKey = firstPage.LastEvaluatedKey;
-
-    while (collected.length < limit && lastKey) {
+    const allItems: Record<string, any>[] = [];
+    let lastKey: Record<string, any> | undefined;
+    do {
       const resp = await this.dynamoDBClient.send(
         new ScanCommand({
           TableName: this.tableName,
           FilterExpression: filterExpression,
           ExpressionAttributeValues: expressionValues,
-          Limit: limit * 5,
           ExclusiveStartKey: lastKey,
         }),
       );
-      collected.push(...(resp.Items || []));
+      allItems.push(...(resp.Items || []));
       lastKey = resp.LastEvaluatedKey;
-    }
+    } while (lastKey);
 
-    const pageItems = collected.slice(0, limit);
-    const hasMore = collected.length > limit || !!lastKey;
-
-    // Use the last returned item's PK/SK as the exclusive start key for the next page
-    let next_cursor: string | null = null;
-    if (hasMore && pageItems.length > 0) {
-      const last = pageItems[pageItems.length - 1];
-      next_cursor = Buffer.from(
-        JSON.stringify({ PK: last['PK'], SK: last['SK'] }),
-      ).toString('base64');
-    }
-
-    const data: Asset[] = pageItems.map((item) => {
-      const unmarshalled = unmarshall(item);
+    return allItems.map((item) => {
+      const u = unmarshall(item);
       return {
-        id: unmarshalled.PK.replace('ASSET#', ''),
-        key: unmarshalled.key || '',
-        ...(unmarshalled.status && {
-          status: unmarshalled.status as AssetStatus,
-        }),
-        ...(unmarshalled.uploadedBy && { uploadedBy: unmarshalled.uploadedBy }),
-        ...(unmarshalled.metadata && { metadata: unmarshalled.metadata }),
+        id: u.PK.replace('ASSET#', ''),
+        key: u.key || '',
+        ...(u.status && { status: u.status as AssetStatus }),
+        ...(u.uploadedBy && { uploadedBy: u.uploadedBy }),
+        ...(u.metadata && { metadata: u.metadata }),
       };
     });
-
-    return {
-      data,
-      pagination: {
-        limit,
-        has_more: hasMore,
-        next_cursor,
-        total: countResp.Count,
-      },
-    };
   }
 
   async findOne(id: string): Promise<Asset> {
@@ -435,51 +378,39 @@ export class AssetService {
   private async listAccessBySKPrefix(
     assetId: string,
     skPrefix: string,
-    limit: number,
-    cursor?: string,
-  ): Promise<PaginatedResponse<AssetAccess>> {
-    const result = await this.dynamoDBClient.send(
-      new QueryCommand({
-        TableName: this.tableName,
-        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
-        ExpressionAttributeValues: marshall({
-          ':pk': `ASSET#${assetId}`,
-          ':prefix': skPrefix,
+  ): Promise<AssetAccess[]> {
+    const items: Record<string, any>[] = [];
+    let lastKey: Record<string, any> | undefined;
+    do {
+      const resp = await this.dynamoDBClient.send(
+        new QueryCommand({
+          TableName: this.tableName,
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+          ExpressionAttributeValues: marshall({
+            ':pk': `ASSET#${assetId}`,
+            ':prefix': skPrefix,
+          }),
+          ExclusiveStartKey: lastKey,
         }),
-        Limit: limit,
-        ExclusiveStartKey: cursor
-          ? JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8'))
-          : undefined,
-      }),
-    );
+      );
+      items.push(...(resp.Items ?? []));
+      lastKey = resp.LastEvaluatedKey;
+    } while (lastKey);
 
-    const data: AssetAccess[] = (result.Items ?? []).map((item) => {
+    return items.map((item) => {
       const u = unmarshall(item);
       return {
         id: u.SK.replace(/^(USER|TEAM)#/, ''),
         type: u.SK.startsWith('USER#') ? 'user' : 'team',
         grantedAt: u.grantedAt,
         ...(u.grantedBy && { grantedBy: u.grantedBy }),
-      };
+      } as AssetAccess;
     });
-
-    const next_cursor = result.LastEvaluatedKey
-      ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64')
-      : null;
-
-    return {
-      data,
-      pagination: { limit, has_more: !!next_cursor, next_cursor },
-    };
   }
 
-  async listUserAccess(
-    assetId: string,
-    limit = 10,
-    cursor?: string,
-  ): Promise<PaginatedResponse<AssetAccess>> {
+  async listUserAccess(assetId: string): Promise<AssetAccess[]> {
     await this.findOne(assetId);
-    return this.listAccessBySKPrefix(assetId, 'USER#', limit, cursor);
+    return this.listAccessBySKPrefix(assetId, 'USER#');
   }
 
   async addUserAccess(
@@ -511,13 +442,9 @@ export class AssetService {
     );
   }
 
-  async listTeamAccess(
-    assetId: string,
-    limit = 10,
-    cursor?: string,
-  ): Promise<PaginatedResponse<AssetAccess>> {
+  async listTeamAccess(assetId: string): Promise<AssetAccess[]> {
     await this.findOne(assetId);
-    return this.listAccessBySKPrefix(assetId, 'TEAM#', limit, cursor);
+    return this.listAccessBySKPrefix(assetId, 'TEAM#');
   }
 
   async addTeamAccess(

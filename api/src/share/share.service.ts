@@ -20,7 +20,6 @@ import {
   CreateShareDto,
   DurationUnit,
 } from './share.model';
-import { PaginatedResponse } from '../utils/pagination.model';
 import { AssetService } from '../asset/asset.service';
 
 const UNIT_MS: Record<DurationUnit, number> = {
@@ -91,38 +90,26 @@ export class ShareService {
     return this.mapShare(item);
   }
 
-  async findAll(
-    assetId: string,
-    limit = 10,
-    cursor?: string,
-  ): Promise<PaginatedResponse<Share>> {
+  async findAll(assetId: string): Promise<Share[]> {
     await this.assetService.findOne(assetId);
-    const result = await this.dynamoDBClient.send(
-      new QueryCommand({
-        TableName: this.tableName,
-        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
-        ExpressionAttributeValues: marshall({
-          ':pk': `ASSET#${assetId}`,
-          ':prefix': 'SHARE#',
+    const items: Record<string, any>[] = [];
+    let lastKey: Record<string, any> | undefined;
+    do {
+      const resp = await this.dynamoDBClient.send(
+        new QueryCommand({
+          TableName: this.tableName,
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+          ExpressionAttributeValues: marshall({
+            ':pk': `ASSET#${assetId}`,
+            ':prefix': 'SHARE#',
+          }),
+          ExclusiveStartKey: lastKey,
         }),
-        Limit: limit,
-        ExclusiveStartKey: cursor
-          ? JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8'))
-          : undefined,
-      }),
-    );
-
-    const data = (result.Items ?? []).map((item) =>
-      this.mapShare(unmarshall(item)),
-    );
-    const next_cursor = result.LastEvaluatedKey
-      ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64')
-      : null;
-
-    return {
-      data,
-      pagination: { limit, has_more: !!next_cursor, next_cursor },
-    };
+      );
+      items.push(...(resp.Items ?? []));
+      lastKey = resp.LastEvaluatedKey;
+    } while (lastKey);
+    return items.map((item) => this.mapShare(unmarshall(item)));
   }
 
   async findOne(assetId: string, shareId: string): Promise<Share> {
@@ -158,52 +145,42 @@ export class ShareService {
   private async listShareAccessBySKPrefix(
     shareId: string,
     skPrefix: string,
-    limit: number,
-    cursor?: string,
-  ): Promise<PaginatedResponse<ShareAccess>> {
-    const result = await this.dynamoDBClient.send(
-      new QueryCommand({
-        TableName: this.tableName,
-        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
-        ExpressionAttributeValues: marshall({
-          ':pk': `SHARE#${shareId}`,
-          ':prefix': skPrefix,
+  ): Promise<ShareAccess[]> {
+    const items: Record<string, any>[] = [];
+    let lastKey: Record<string, any> | undefined;
+    do {
+      const resp = await this.dynamoDBClient.send(
+        new QueryCommand({
+          TableName: this.tableName,
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+          ExpressionAttributeValues: marshall({
+            ':pk': `SHARE#${shareId}`,
+            ':prefix': skPrefix,
+          }),
+          ExclusiveStartKey: lastKey,
         }),
-        Limit: limit,
-        ExclusiveStartKey: cursor
-          ? JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8'))
-          : undefined,
-      }),
-    );
+      );
+      items.push(...(resp.Items ?? []));
+      lastKey = resp.LastEvaluatedKey;
+    } while (lastKey);
 
-    const data: ShareAccess[] = (result.Items ?? []).map((item) => {
+    return items.map((item) => {
       const u = unmarshall(item);
       return {
         id: u.SK.replace(/^(USER|TEAM)#/, ''),
         type: u.SK.startsWith('USER#') ? 'user' : 'team',
         grantedAt: u.grantedAt,
         ...(u.grantedBy && { grantedBy: u.grantedBy }),
-      };
+      } as ShareAccess;
     });
-
-    const next_cursor = result.LastEvaluatedKey
-      ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64')
-      : null;
-
-    return {
-      data,
-      pagination: { limit, has_more: !!next_cursor, next_cursor },
-    };
   }
 
   async listShareUserAccess(
     assetId: string,
     shareId: string,
-    limit = 10,
-    cursor?: string,
-  ): Promise<PaginatedResponse<ShareAccess>> {
+  ): Promise<ShareAccess[]> {
     await this.findOne(assetId, shareId);
-    return this.listShareAccessBySKPrefix(shareId, 'USER#', limit, cursor);
+    return this.listShareAccessBySKPrefix(shareId, 'USER#');
   }
 
   async addShareUserAccess(
@@ -243,11 +220,9 @@ export class ShareService {
   async listShareTeamAccess(
     assetId: string,
     shareId: string,
-    limit = 10,
-    cursor?: string,
-  ): Promise<PaginatedResponse<ShareAccess>> {
+  ): Promise<ShareAccess[]> {
     await this.findOne(assetId, shareId);
-    return this.listShareAccessBySKPrefix(shareId, 'TEAM#', limit, cursor);
+    return this.listShareAccessBySKPrefix(shareId, 'TEAM#');
   }
 
   async addShareTeamAccess(

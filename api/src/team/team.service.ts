@@ -21,7 +21,6 @@ import {
 import { Team } from './team.model';
 import { User } from '../user/user.model';
 import { UserService } from '../user/user.service';
-import { PaginatedResponse } from '../utils/pagination.model';
 import { ADMINISTRATORS_GROUP } from '../auth/auth.constants';
 
 const RESERVED_GROUP = ADMINISTRATORS_GROUP;
@@ -80,56 +79,25 @@ export class TeamService {
     };
   }
 
-  async findAll(limit = 10, cursor?: string): Promise<PaginatedResponse<Team>> {
+  async findAll(): Promise<Team[]> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
-    // Cognito ListGroups hard-caps Limit at 60
-    const cognitoLimit = Math.min(limit, 60);
-
-    // Fetch the requested page and count all groups in parallel
-    const [response, totalCount] = await Promise.all([
-      this.cognitoClient.send(
+    const groups: any[] = [];
+    let token: string | undefined;
+    do {
+      const r = await this.cognitoClient.send(
         new ListGroupsCommand({
           UserPoolId: userPoolId,
-          Limit: cognitoLimit,
-          NextToken: cursor,
+          Limit: 60,
+          NextToken: token,
         }),
-      ),
-      (async () => {
-        let count = 0;
-        let token: string | undefined;
-        do {
-          const r = await this.cognitoClient.send(
-            new ListGroupsCommand({
-              UserPoolId: userPoolId,
-              Limit: 60,
-              NextToken: token,
-            }),
-          );
-          count += (r.Groups || []).filter(
-            (g) => g.GroupName?.toLowerCase() !== RESERVED_GROUP,
-          ).length;
-          token = r.NextToken;
-        } while (token);
-        return count;
-      })(),
-    ]);
+      );
+      groups.push(...(r.Groups || []));
+      token = r.NextToken;
+    } while (token);
 
-    const data: Team[] = (response.Groups || [])
-      .filter((group) => group.GroupName?.toLowerCase() !== RESERVED_GROUP)
-      .map((group) => ({
-        name: group.GroupName,
-        description: group.Description,
-      }));
-
-    return {
-      data,
-      pagination: {
-        limit,
-        has_more: !!response.NextToken,
-        next_cursor: response.NextToken,
-        total: totalCount,
-      },
-    };
+    return groups
+      .filter((g) => g.GroupName?.toLowerCase() !== RESERVED_GROUP)
+      .map((g) => ({ name: g.GroupName, description: g.Description }));
   }
 
   async findOne(name: string): Promise<Team> {
@@ -280,39 +248,32 @@ export class TeamService {
     );
   }
 
-  async listUsers(
-    teamId: string,
-    limit: number = 100,
-    cursor?: string,
-  ): Promise<PaginatedResponse<User>> {
+  async listUsers(teamId: string): Promise<User[]> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
     await this.findOne(teamId);
 
-    const response = await this.cognitoClient.send(
-      new ListUsersInGroupCommand({
-        UserPoolId: userPoolId,
-        GroupName: teamId,
-        Limit: Math.min(limit, 60),
-        NextToken: cursor,
-      }),
-    );
+    const allUsers: any[] = [];
+    let token: string | undefined;
+    do {
+      const r = await this.cognitoClient.send(
+        new ListUsersInGroupCommand({
+          UserPoolId: userPoolId,
+          GroupName: teamId,
+          Limit: 60,
+          NextToken: token,
+        }),
+      );
+      allUsers.push(...(r.Users || []));
+      token = r.NextToken;
+    } while (token);
 
-    const data = (response.Users || []).map((u) => {
-      const emailAttr = u.Attributes?.find((a) => a.Name === 'email');
+    return allUsers.map((u) => {
+      const emailAttr = u.Attributes?.find((a: any) => a.Name === 'email');
       return {
         id: u.Username,
         email: emailAttr?.Value || '',
         cognitoUsername: u.Username,
       } as User;
     });
-
-    return {
-      data,
-      pagination: {
-        limit,
-        has_more: !!response.NextToken,
-        next_cursor: response.NextToken,
-      },
-    };
   }
 }

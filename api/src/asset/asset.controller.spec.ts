@@ -35,10 +35,7 @@ describe('AssetController', () => {
 
   describe('findAll', () => {
     it('should return an array of assets', async () => {
-      const result = {
-        data: [{ id: '1', key: 'assets/1.ply' }],
-        pagination: { limit: 10, has_more: false, next_cursor: null },
-      };
+      const result = [{ id: '1', key: 'assets/1.ply' }];
       jest.spyOn(service, 'findAll').mockResolvedValue(result);
 
       expect(await controller.findAll()).toBe(result);

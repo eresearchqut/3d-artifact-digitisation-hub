@@ -10,7 +10,7 @@ import { toaster } from '../components/ui/toaster';
 import { FilePicker } from '../components/FilePicker/FilePicker';
 import { usePageTour } from '../hooks/usePageTour';
 import { ASSET_LIST_TOUR_STEPS } from '../constants/tourSteps';
-import { usePagination } from '../hooks/usePagination';
+import { useClientPagination } from '../hooks/useClientPagination';
 
 interface Asset {
   id: string;
@@ -56,25 +56,25 @@ export const AssetListPage: React.FC = () => {
   const [uploadFileName, setUploadFileName] = useState('');
   const [viewerAsset, setViewerAsset] = useState<Asset | null>(null);
 
-  const { limit, cursor, hasPrev, goNext, goPrev, reset: resetPagination, pageNumber, changeLimit } = usePagination(10);
-
   const steps = useMemo(() => ASSET_LIST_TOUR_STEPS, []);
   usePageTour(steps);
 
-  const { data: assets, isLoading, error } = useQuery({
-    queryKey: ['assets', { limit, cursor }],
-    queryFn: () => assetService.findAll(limit, cursor),
+  const { data: allAssets, isLoading, error } = useQuery({
+    queryKey: ['assets'],
+    queryFn: () => assetService.findAll(),
     refetchInterval: (query) => {
-      const data = query.state.data?.data;
+      const data = query.state.data;
       if (!data) return false;
       return data.some((a) => a.status !== AssetStatus.VIEWER_CONSTRUCTED) ? 5000 : false;
     },
   });
 
+  const { page, pageNumber, pageSize, total, hasPrev, hasMore, goNext, goPrev, changePageSize } =
+    useClientPagination(allAssets, 10);
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => assetService.remove(id),
     onSuccess: () => {
-      resetPagination();
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       toaster.create({ type: 'success', title: 'Asset deleted' });
     },
@@ -135,7 +135,6 @@ export const AssetListPage: React.FC = () => {
       });
 
       setTimeout(() => {
-        resetPagination();
         queryClient.invalidateQueries({ queryKey: ['assets'] });
         setIsUploading(false);
         setUploadProgress(0);
@@ -233,21 +232,21 @@ export const AssetListPage: React.FC = () => {
 
       <Box id="asset-table">
         <DataTable
-          data={assets?.data}
+          data={page}
           columns={columns}
           keyExtractor={(asset) => asset.id}
           emptyMessage="No assets found."
           pagination={{
             hasPrev,
-            hasMore: !!assets?.pagination.has_more,
+            hasMore,
             onPrev: goPrev,
-            onNext: () => assets?.pagination.next_cursor && goNext(assets.pagination.next_cursor),
-            count: assets?.data?.length ?? 0,
-            total: assets?.pagination.total,
+            onNext: goNext,
+            count: page.length,
+            total,
             pageNumber,
-            pageSize: limit,
+            pageSize,
             pageSizeOptions: [10, 25, 50, 100],
-            onPageSizeChange: changeLimit,
+            onPageSizeChange: changePageSize,
             isLoading,
           }}
         />

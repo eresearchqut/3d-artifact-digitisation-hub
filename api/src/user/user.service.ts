@@ -15,10 +15,8 @@ import {
   ListUsersCommand,
   ListUsersInGroupCommand,
   AdminGetUserCommand,
-  DescribeUserPoolCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { User } from './user.model';
-import { PaginatedResponse } from '../utils/pagination.model';
 import { ADMINISTRATORS_GROUP } from '../auth/auth.constants';
 
 @Injectable()
@@ -53,24 +51,26 @@ export class UserService {
     } as User;
   }
 
-  async findAll(
-    limit: number = 10,
-    cursor?: string,
-  ): Promise<PaginatedResponse<User>> {
+  async findAll(): Promise<User[]> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
-    // Cognito ListUsers hard-caps Limit at 60
-    const cognitoLimit = Math.min(limit, 60);
 
-    const [usersResponse, adminsResponse, poolResponse] = await Promise.all([
-      this.cognitoClient.send(
-        new ListUsersCommand({
-          UserPoolId: userPoolId,
-          Limit: cognitoLimit,
-          PaginationToken: cursor,
-        }),
-      ),
-      // Fetch current admin members to annotate each user with isAdmin.
-      // Ignore errors gracefully — the administrators group may not exist yet.
+    const [allCognitoUsers, adminsResponse] = await Promise.all([
+      (async () => {
+        const users: any[] = [];
+        let token: string | undefined;
+        do {
+          const r = await this.cognitoClient.send(
+            new ListUsersCommand({
+              UserPoolId: userPoolId,
+              Limit: 60,
+              PaginationToken: token,
+            }),
+          );
+          users.push(...(r.Users || []));
+          token = r.PaginationToken;
+        } while (token);
+        return users;
+      })(),
       this.cognitoClient
         .send(
           new ListUsersInGroupCommand({
@@ -79,19 +79,15 @@ export class UserService {
           }),
         )
         .catch(() => ({ Users: [] })),
-      // EstimatedNumberOfUsers is cheap — no full scan required
-      this.cognitoClient
-        .send(new DescribeUserPoolCommand({ UserPoolId: userPoolId }))
-        .catch(() => null),
     ]);
 
     const adminUsernames = new Set(
-      (adminsResponse.Users ?? []).map((u) => u.Username),
+      (adminsResponse.Users ?? []).map((u: any) => u.Username),
     );
 
-    const data: User[] = (usersResponse.Users || []).map((u) => {
-      const emailAttr = u.Attributes?.find((a) => a.Name === 'email');
-      const subAttr = u.Attributes?.find((a) => a.Name === 'sub');
+    return allCognitoUsers.map((u) => {
+      const emailAttr = u.Attributes?.find((a: any) => a.Name === 'email');
+      const subAttr = u.Attributes?.find((a: any) => a.Name === 'sub');
       return {
         id: u.Username,
         sub: subAttr?.Value,
@@ -99,16 +95,6 @@ export class UserService {
         isAdmin: adminUsernames.has(u.Username),
       } as User;
     });
-
-    return {
-      data,
-      pagination: {
-        limit,
-        has_more: !!usersResponse.PaginationToken,
-        next_cursor: usersResponse.PaginationToken,
-        total: poolResponse?.UserPool?.EstimatedNumberOfUsers,
-      },
-    };
   }
 
   async findOne(id: string): Promise<User> {

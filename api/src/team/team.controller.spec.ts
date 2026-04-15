@@ -12,13 +12,7 @@ describe('TeamController', () => {
       return { id: '1', ...team };
     }),
     findAll: jest.fn(() => {
-      return {
-        data: [{ id: '1', name: 'Test Team' }],
-        pagination: {
-          limit: 10,
-          has_more: false,
-        },
-      };
+      return [{ id: '1', name: 'Test Team' }];
     }),
     findOne: jest.fn((id: string) => {
       return { id, name: 'Test Team' };
@@ -36,13 +30,7 @@ describe('TeamController', () => {
       return;
     }),
     listUsers: jest.fn(() => {
-      return {
-        data: [{ id: 'user-1', email: 'user1@example.com' }],
-        pagination: {
-          limit: 10,
-          has_more: false,
-        },
-      };
+      return [{ id: 'user-1', email: 'user1@example.com' }];
     }),
   };
 
@@ -78,21 +66,10 @@ describe('TeamController', () => {
   });
 
   describe('findAll', () => {
-    it('should return a paginated response of teams', async () => {
-      const expectedResponse = {
-        data: [{ id: '1', name: 'Test Team' }],
-        pagination: {
-          limit: 10,
-          has_more: false,
-        },
-      };
+    it('should return an array of teams', async () => {
+      const expectedResponse = [{ id: '1', name: 'Test Team' }];
       expect(await controller.findAll()).toEqual(expectedResponse);
-      expect(service.findAll).toHaveBeenCalledWith(10, undefined);
-    });
-
-    it('should pass limit and cursor to service', async () => {
-      await controller.findAll('50', 'some-cursor');
-      expect(service.findAll).toHaveBeenCalledWith(50, 'some-cursor');
+      expect(service.findAll).toHaveBeenCalledWith();
     });
   });
 
@@ -136,25 +113,10 @@ describe('TeamController', () => {
   });
 
   describe('listUsers', () => {
-    it('should return a paginated list of users in a team', async () => {
-      const expectedResponse = {
-        data: [{ id: 'user-1', email: 'user1@example.com' }],
-        pagination: {
-          limit: 10,
-          has_more: false,
-        },
-      };
+    it('should return an array of users in a team', async () => {
+      const expectedResponse = [{ id: 'user-1', email: 'user1@example.com' }];
       expect(await controller.listUsers('team-1')).toEqual(expectedResponse);
-      expect(service.listUsers).toHaveBeenCalledWith('team-1', 10, undefined);
-    });
-
-    it('should pass limit and cursor to service', async () => {
-      await controller.listUsers('team-1', '50', 'some-cursor');
-      expect(service.listUsers).toHaveBeenCalledWith(
-        'team-1',
-        50,
-        'some-cursor',
-      );
+      expect(service.listUsers).toHaveBeenCalledWith('team-1');
     });
   });
 });

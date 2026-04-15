@@ -6,7 +6,6 @@ import {
   Body,
   Param,
   Delete,
-  Query,
   Req,
   Res,
   StreamableFile,
@@ -25,10 +24,6 @@ import { Request } from 'express';
 import { AssetService } from './asset.service';
 import { Asset } from './asset.model';
 import { AssetAccess } from './asset-access.model';
-import {
-  ApiPaginatedResponse,
-  PaginatedResponse,
-} from '../utils/pagination.model';
 import { AuthGuard } from '../auth/auth.guard';
 import { JwtPayload } from '../auth/auth.constants';
 @ApiTags('asset')
@@ -38,14 +33,9 @@ export class AssetController {
 
   @Get()
   @ApiOperation({ summary: 'Get all assets' })
-  @ApiPaginatedResponse(Asset)
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
-  findAll(
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ): Promise<PaginatedResponse<Asset>> {
-    return this.assetService.findAll(limit ? parseInt(limit, 10) : 10, cursor);
+  @ApiResponse({ status: 200, type: [Asset] })
+  findAll(): Promise<Asset[]> {
+    return this.assetService.findAll();
   }
 
   @Get(':id')
@@ -122,19 +112,9 @@ export class AssetController {
 
   @Get(':id/user')
   @ApiOperation({ summary: 'List users with access to an asset' })
-  @ApiPaginatedResponse(AssetAccess)
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
-  listUserAccess(
-    @Param('id') id: string,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ): Promise<PaginatedResponse<AssetAccess>> {
-    return this.assetService.listUserAccess(
-      id,
-      limit ? parseInt(limit, 10) : 10,
-      cursor,
-    );
+  @ApiResponse({ status: 200, type: [AssetAccess] })
+  listUserAccess(@Param('id') id: string): Promise<AssetAccess[]> {
+    return this.assetService.listUserAccess(id);
   }
 
   @Post(':id/user/:email')
@@ -165,19 +145,9 @@ export class AssetController {
 
   @Get(':id/team')
   @ApiOperation({ summary: 'List teams with access to an asset' })
-  @ApiPaginatedResponse(AssetAccess)
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
-  listTeamAccess(
-    @Param('id') id: string,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ): Promise<PaginatedResponse<AssetAccess>> {
-    return this.assetService.listTeamAccess(
-      id,
-      limit ? parseInt(limit, 10) : 10,
-      cursor,
-    );
+  @ApiResponse({ status: 200, type: [AssetAccess] })
+  listTeamAccess(@Param('id') id: string): Promise<AssetAccess[]> {
+    return this.assetService.listTeamAccess(id);
   }
 
   @Post(':id/team/:teamName')
