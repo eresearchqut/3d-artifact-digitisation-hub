@@ -21,6 +21,7 @@ import {
   DurationUnit,
 } from './share.model';
 import { AssetService } from '../asset/asset.service';
+import { JwtPayload } from '../auth/auth.constants';
 
 const UNIT_MS: Record<DurationUnit, number> = {
   minute: 60_000,
@@ -187,9 +188,13 @@ export class ShareService {
     assetId: string,
     shareId: string,
     email: string,
-    grantedBy?: string,
+    actor: JwtPayload,
   ): Promise<void> {
     await this.findOne(assetId, shareId);
+    if (!actor.isAdmin) {
+      await this.assetService.verifyActorHasAssetAccess(assetId, actor);
+      await this.assetService.verifyTargetUserInActorTeams(email, actor);
+    }
     await this.dynamoDBClient.send(
       new PutItemCommand({
         TableName: this.tableName,
@@ -197,7 +202,7 @@ export class ShareService {
           PK: `SHARE#${shareId}`,
           SK: `USER#${email}`,
           grantedAt: new Date().toISOString(),
-          ...(grantedBy && { grantedBy }),
+          grantedBy: actor.username,
         }),
       }),
     );
@@ -229,9 +234,17 @@ export class ShareService {
     assetId: string,
     shareId: string,
     teamName: string,
-    grantedBy?: string,
+    actor: JwtPayload,
   ): Promise<void> {
     await this.findOne(assetId, shareId);
+    if (!actor.isAdmin) {
+      await this.assetService.verifyActorHasAssetAccess(assetId, actor);
+      if (!actor.groups?.includes(teamName)) {
+        throw new ForbiddenException(
+          'You can only grant access to teams you belong to',
+        );
+      }
+    }
     await this.dynamoDBClient.send(
       new PutItemCommand({
         TableName: this.tableName,
@@ -239,7 +252,7 @@ export class ShareService {
           PK: `SHARE#${shareId}`,
           SK: `TEAM#${teamName}`,
           grantedAt: new Date().toISOString(),
-          ...(grantedBy && { grantedBy }),
+          grantedBy: actor.username,
         }),
       }),
     );

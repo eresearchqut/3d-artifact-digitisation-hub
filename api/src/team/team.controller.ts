@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -14,19 +15,22 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { TeamService } from './team.service';
 import { Team } from './team.model';
 import { User } from '../user/user.model';
-import { AdminGuard } from '../auth/auth.guard';
+import { AuthGuard, AdminGuard } from '../auth/auth.guard';
+import { JwtPayload } from '../auth/auth.constants';
 
 @ApiTags('team')
 @Controller('team')
-@UseGuards(AdminGuard)
+@UseGuards(AuthGuard)
 @ApiBearerAuth()
 export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
   @Post()
+  @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Create team' })
   @ApiResponse({ status: 201, type: Team })
   create(@Body() team: Team) {
@@ -36,8 +40,8 @@ export class TeamController {
   @Get()
   @ApiOperation({ summary: 'Get all teams' })
   @ApiResponse({ status: 200, type: [Team] })
-  findAll(): Promise<Team[]> {
-    return this.teamService.findAll();
+  findAll(@Req() req: Request & { user: JwtPayload }): Promise<Team[]> {
+    return this.teamService.findAll(req.user);
   }
 
   @Get(':id')
@@ -49,6 +53,7 @@ export class TeamController {
   }
 
   @Patch(':id')
+  @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Update team' })
   @ApiResponse({ status: 200, type: Team })
   @ApiResponse({ status: 404, description: 'Team not found' })
@@ -57,6 +62,7 @@ export class TeamController {
   }
 
   @Delete(':id')
+  @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Delete team' })
   @ApiResponse({ status: 200, description: 'Team deleted' })
   @ApiResponse({ status: 404, description: 'Team not found' })
@@ -72,6 +78,7 @@ export class TeamController {
   }
 
   @Post(':id/user/:userId')
+  @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Add user to team' })
   @ApiResponse({ status: 201, description: 'User added to team' })
   @ApiResponse({ status: 404, description: 'Team or user not found' })
@@ -83,6 +90,7 @@ export class TeamController {
   }
 
   @Delete(':id/user/:userId')
+  @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Remove user from team' })
   @ApiResponse({ status: 200, description: 'User removed from team' })
   @ApiResponse({ status: 404, description: 'Team or user not found' })

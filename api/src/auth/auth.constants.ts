@@ -5,4 +5,5 @@ export interface JwtPayload {
   username: string;
   sub: string;
   isAdmin: boolean;
+  groups: string[];
 }

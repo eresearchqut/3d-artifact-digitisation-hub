@@ -68,8 +68,16 @@ describe('TeamController', () => {
   describe('findAll', () => {
     it('should return an array of teams', async () => {
       const expectedResponse = [{ id: '1', name: 'Test Team' }];
-      expect(await controller.findAll()).toEqual(expectedResponse);
-      expect(service.findAll).toHaveBeenCalledWith();
+      const mockReq = {
+        user: {
+          username: 'a@b.com',
+          isAdmin: true,
+          groups: ['administrators'],
+          sub: 'sub1',
+        },
+      } as any;
+      expect(await controller.findAll(mockReq)).toEqual(expectedResponse);
+      expect(service.findAll).toHaveBeenCalledWith(mockReq.user);
     });
   });
 

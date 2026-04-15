@@ -17,7 +17,7 @@ import {
   AdminGetUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { User } from './user.model';
-import { ADMINISTRATORS_GROUP } from '../auth/auth.constants';
+import { ADMINISTRATORS_GROUP, JwtPayload } from '../auth/auth.constants';
 
 @Injectable()
 export class UserService {
@@ -51,8 +51,48 @@ export class UserService {
     } as User;
   }
 
-  async findAll(): Promise<User[]> {
+  async findAll(actor?: JwtPayload): Promise<User[]> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
+
+    if (actor && !actor.isAdmin) {
+      // Non-admin: return only users who share a team with the actor.
+      const teamGroups = (actor.groups ?? []).filter(
+        (g) => g.toLowerCase() !== ADMINISTRATORS_GROUP,
+      );
+      const seen = new Map<string, User>();
+      await Promise.all(
+        teamGroups.map(async (groupName) => {
+          const groupUsers: any[] = [];
+          let token: string | undefined;
+          do {
+            const r = await this.cognitoClient.send(
+              new ListUsersInGroupCommand({
+                UserPoolId: userPoolId,
+                GroupName: groupName,
+                Limit: 60,
+                NextToken: token,
+              }),
+            );
+            groupUsers.push(...(r.Users ?? []));
+            token = r.NextToken;
+          } while (token);
+          for (const u of groupUsers) {
+            if (!seen.has(u.Username)) {
+              const emailAttr = u.Attributes?.find(
+                (a: any) => a.Name === 'email',
+              );
+              const subAttr = u.Attributes?.find((a: any) => a.Name === 'sub');
+              seen.set(u.Username, {
+                id: u.Username,
+                sub: subAttr?.Value,
+                email: emailAttr?.Value || '',
+              } as User);
+            }
+          }
+        }),
+      );
+      return Array.from(seen.values());
+    }
 
     const [allCognitoUsers, adminsResponse] = await Promise.all([
       (async () => {

@@ -100,7 +100,7 @@ export class ShareController {
       assetId,
       shareId,
       email,
-      req.user.username,
+      req.user,
     );
   }
 
@@ -143,7 +143,7 @@ export class ShareController {
       assetId,
       shareId,
       teamName,
-      req.user.username,
+      req.user,
     );
   }
 

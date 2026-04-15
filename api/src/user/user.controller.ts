@@ -18,16 +18,18 @@ import {
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { User } from './user.model';
-import { AdminGuard } from '../auth/auth.guard';
+import { AdminGuard, AuthGuard } from '../auth/auth.guard';
+import { JwtPayload } from '../auth/auth.constants';
 
 @ApiTags('user')
 @Controller('user')
-@UseGuards(AdminGuard)
+@UseGuards(AuthGuard)
 @ApiBearerAuth()
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post()
+  @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Create user' })
   @ApiResponse({ status: 201, type: User })
   create(@Body() user: User) {
@@ -37,8 +39,8 @@ export class UserController {
   @Get()
   @ApiOperation({ summary: 'Get all users' })
   @ApiResponse({ status: 200, type: [User] })
-  findAll(): Promise<User[]> {
-    return this.userService.findAll();
+  findAll(@Req() req: Request & { user: JwtPayload }): Promise<User[]> {
+    return this.userService.findAll(req.user);
   }
 
   @Get(':id')
@@ -50,6 +52,7 @@ export class UserController {
   }
 
   @Patch(':id')
+  @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Update user' })
   @ApiResponse({ status: 200, type: User })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -58,6 +61,7 @@ export class UserController {
   }
 
   @Delete(':id')
+  @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Delete user' })
   @ApiResponse({ status: 200, description: 'User deleted' })
   @ApiResponse({ status: 403, description: 'Cannot delete your own account' })
@@ -70,6 +74,7 @@ export class UserController {
   }
 
   @Put(':id/admin')
+  @UseGuards(AdminGuard)
   @ApiOperation({
     summary: 'Grant or revoke the administrator role for a user',
   })
@@ -88,6 +93,7 @@ export class UserController {
   }
 
   @Put(':id/password')
+  @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Reset a user password (admin only)' })
   @ApiResponse({ status: 200, description: 'Password reset' })
   @ApiResponse({ status: 404, description: 'User not found' })

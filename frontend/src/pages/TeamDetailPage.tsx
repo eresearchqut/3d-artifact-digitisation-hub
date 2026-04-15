@@ -119,7 +119,7 @@ export const TeamDetailPage: React.FC = () => {
                 style={{ flex: 1, fontSize: '0.875rem', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--chakra-colors-border)', background: 'var(--chakra-colors-bg)', color: 'var(--chakra-colors-fg)' }}
               >
                 <option value="">Select a user to add to team...</option>
-                {allUsers?.data.filter(u => !teamUsers?.data.find(tu => tu.id === u.id)).map(user => (
+                {allUsers?.filter(u => !teamUsers?.find(tu => tu.id === u.id)).map(user => (
                   <option key={user.id} value={user.id}>{user.email}</option>
                 ))}
               </select>
@@ -132,7 +132,7 @@ export const TeamDetailPage: React.FC = () => {
           <Box mt={4}>
             <DataTable
               columns={userColumns}
-              data={teamUsers?.data || []}
+              data={teamUsers || []}
               emptyMessage="There are no users associated with this team"
               keyExtractor={(row: any) => row.id}
             />

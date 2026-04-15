@@ -37,8 +37,18 @@ describe('AssetController', () => {
     it('should return an array of assets', async () => {
       const result = [{ id: '1', key: 'assets/1.ply' }];
       jest.spyOn(service, 'findAll').mockResolvedValue(result);
-
-      expect(await controller.findAll()).toBe(result);
+      const req = {
+        user: {
+          username: 'a@b.com',
+          isAdmin: true,
+          groups: ['administrators'],
+          sub: 'sub1',
+        },
+      } as any;
+      expect(await controller.findAll(req)).toBe(result);
+      expect(service.findAll).toHaveBeenCalledWith('a@b.com', true, [
+        'administrators',
+      ]);
     });
   });
 

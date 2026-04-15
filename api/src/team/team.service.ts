@@ -21,7 +21,7 @@ import {
 import { Team } from './team.model';
 import { User } from '../user/user.model';
 import { UserService } from '../user/user.service';
-import { ADMINISTRATORS_GROUP } from '../auth/auth.constants';
+import { ADMINISTRATORS_GROUP, JwtPayload } from '../auth/auth.constants';
 
 const RESERVED_GROUP = ADMINISTRATORS_GROUP;
 
@@ -79,7 +79,7 @@ export class TeamService {
     };
   }
 
-  async findAll(): Promise<Team[]> {
+  async findAll(actor?: JwtPayload): Promise<Team[]> {
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
     const groups: any[] = [];
     let token: string | undefined;
@@ -95,9 +95,14 @@ export class TeamService {
       token = r.NextToken;
     } while (token);
 
-    return groups
+    const allTeams = groups
       .filter((g) => g.GroupName?.toLowerCase() !== RESERVED_GROUP)
       .map((g) => ({ name: g.GroupName, description: g.Description }));
+
+    if (!actor || actor.isAdmin) return allTeams;
+
+    const memberGroups = new Set(actor.groups ?? []);
+    return allTeams.filter((t) => memberGroups.has(t.name));
   }
 
   async findOne(name: string): Promise<Team> {

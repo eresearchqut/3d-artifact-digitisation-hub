@@ -24,7 +24,7 @@ import { Request } from 'express';
 import { AssetService } from './asset.service';
 import { Asset } from './asset.model';
 import { AssetAccess } from './asset-access.model';
-import { AuthGuard } from '../auth/auth.guard';
+import { AuthGuard, OptionalAuthGuard } from '../auth/auth.guard';
 import { JwtPayload } from '../auth/auth.constants';
 @ApiTags('asset')
 @Controller('asset')
@@ -32,10 +32,13 @@ export class AssetController {
   constructor(private readonly assetService: AssetService) {}
 
   @Get()
+  @UseGuards(OptionalAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all assets' })
   @ApiResponse({ status: 200, type: [Asset] })
-  findAll(): Promise<Asset[]> {
-    return this.assetService.findAll();
+  findAll(@Req() req: Request & { user?: JwtPayload }): Promise<Asset[]> {
+    const { username, isAdmin, groups } = req.user ?? {};
+    return this.assetService.findAll(username, isAdmin, groups);
   }
 
   @Get(':id')
@@ -128,7 +131,7 @@ export class AssetController {
     @Param('email') email: string,
     @Req() req: Request & { user: JwtPayload },
   ): Promise<void> {
-    return this.assetService.addUserAccess(id, email, req.user.username);
+    return this.assetService.addUserAccess(id, email, req.user);
   }
 
   @Delete(':id/user/:email')
@@ -161,7 +164,7 @@ export class AssetController {
     @Param('teamName') teamName: string,
     @Req() req: Request & { user: JwtPayload },
   ): Promise<void> {
-    return this.assetService.addTeamAccess(id, teamName, req.user.username);
+    return this.assetService.addTeamAccess(id, teamName, req.user);
   }
 
   @Delete(':id/team/:teamName')

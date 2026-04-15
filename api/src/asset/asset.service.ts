@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   StreamableFile,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -24,8 +25,13 @@ import {
   DeleteObjectsCommand,
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
+import {
+  CognitoIdentityProviderClient,
+  AdminListGroupsForUserCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
+import { JwtPayload } from '../auth/auth.constants';
 import { Asset, AssetStatus } from './asset.model';
 import { AssetAccess } from './asset-access.model';
 
@@ -54,24 +60,27 @@ export class AssetService {
     private readonly configService: ConfigService,
     private readonly dynamoDBClient: DynamoDBClient,
     private readonly s3Client: S3Client,
+    private readonly cognitoClient: CognitoIdentityProviderClient,
   ) {
     this.tableName =
       this.configService.get<string>('DYNAMODB_TABLE_NAME') || '3d-hub-assets';
   }
 
-  async findAll(): Promise<Asset[]> {
-    const filterExpression =
-      'begins_with(PK, :prefix) AND begins_with(SK, :prefix)';
-    const expressionValues = marshall({ ':prefix': 'ASSET#' });
-
+  async findAll(
+    userEmail?: string,
+    isAdmin?: boolean,
+    userGroups?: string[],
+  ): Promise<Asset[]> {
+    // Scan all items under ASSET# partition keys — this includes main records
+    // (SK = ASSET#<id>) and access records (SK = USER#<email> or TEAM#<name>)
     const allItems: Record<string, any>[] = [];
     let lastKey: Record<string, any> | undefined;
     do {
       const resp = await this.dynamoDBClient.send(
         new ScanCommand({
           TableName: this.tableName,
-          FilterExpression: filterExpression,
-          ExpressionAttributeValues: expressionValues,
+          FilterExpression: 'begins_with(PK, :prefix)',
+          ExpressionAttributeValues: marshall({ ':prefix': 'ASSET#' }),
           ExclusiveStartKey: lastKey,
         }),
       );
@@ -79,16 +88,47 @@ export class AssetService {
       lastKey = resp.LastEvaluatedKey;
     } while (lastKey);
 
-    return allItems.map((item) => {
+    // Separate main asset records from access records
+    const assetRecords = new Map<string, Record<string, any>>();
+    const accessibleIds = new Set<string>();
+
+    for (const item of allItems) {
       const u = unmarshall(item);
-      return {
-        id: u.PK.replace('ASSET#', ''),
-        key: u.key || '',
-        ...(u.status && { status: u.status as AssetStatus }),
-        ...(u.uploadedBy && { uploadedBy: u.uploadedBy }),
-        ...(u.metadata && { metadata: u.metadata }),
-      };
+      const assetId = u.PK.replace('ASSET#', '');
+
+      if (u.SK === u.PK) {
+        // Main asset record
+        assetRecords.set(assetId, u);
+      } else if (!isAdmin && userEmail) {
+        // Access record — check if this user or one of their teams has access
+        if (u.SK === `USER#${userEmail}`) {
+          accessibleIds.add(assetId);
+        } else if (u.SK.startsWith('TEAM#') && userGroups?.length) {
+          const teamName = u.SK.replace('TEAM#', '');
+          if (userGroups.includes(teamName)) {
+            accessibleIds.add(assetId);
+          }
+        }
+      }
+    }
+
+    const mapRecord = (u: Record<string, any>): Asset => ({
+      id: u.PK.replace('ASSET#', ''),
+      key: u.key || '',
+      ...(u.status && { status: u.status as AssetStatus }),
+      ...(u.uploadedBy && { uploadedBy: u.uploadedBy }),
+      ...(u.metadata && { metadata: u.metadata }),
     });
+
+    // Admins (or unauthenticated callers) see everything
+    if (isAdmin || !userEmail) {
+      return Array.from(assetRecords.values()).map(mapRecord);
+    }
+
+    // Non-admins only see assets they have direct or team-based access to
+    return Array.from(assetRecords.entries())
+      .filter(([id]) => accessibleIds.has(id))
+      .map(([, u]) => mapRecord(u));
   }
 
   async findOne(id: string): Promise<Asset> {
@@ -408,6 +448,63 @@ export class AssetService {
     });
   }
 
+  /** Throws ForbiddenException if actor doesn't have direct or team-based access to the asset. */
+  async verifyActorHasAssetAccess(
+    assetId: string,
+    actor: JwtPayload,
+  ): Promise<void> {
+    if (actor.isAdmin) return;
+
+    const { Item: directItem } = await this.dynamoDBClient.send(
+      new GetItemCommand({
+        TableName: this.tableName,
+        Key: marshall({ PK: `ASSET#${assetId}`, SK: `USER#${actor.username}` }),
+      }),
+    );
+    if (directItem) return;
+
+    for (const teamName of actor.groups ?? []) {
+      const { Item: teamItem } = await this.dynamoDBClient.send(
+        new GetItemCommand({
+          TableName: this.tableName,
+          Key: marshall({ PK: `ASSET#${assetId}`, SK: `TEAM#${teamName}` }),
+        }),
+      );
+      if (teamItem) return;
+    }
+
+    throw new ForbiddenException('You do not have access to this asset');
+  }
+
+  /** Throws ForbiddenException if targetEmail is not in any team the actor belongs to. */
+  async verifyTargetUserInActorTeams(
+    targetEmail: string,
+    actor: JwtPayload,
+  ): Promise<void> {
+    if (actor.isAdmin) return;
+    if (!actor.groups?.length) {
+      throw new ForbiddenException(
+        'You must be a member of a team to grant access to other users',
+      );
+    }
+    const userPoolId = this.configService.get<string>('USER_POOL_ID');
+    const response = await this.cognitoClient.send(
+      new AdminListGroupsForUserCommand({
+        UserPoolId: userPoolId,
+        Username: targetEmail,
+      }),
+    );
+    const targetGroups = new Set(
+      (response.Groups ?? []).map((g) => g.GroupName),
+    );
+    const hasCommonTeam = actor.groups.some((g) => targetGroups.has(g));
+    if (!hasCommonTeam) {
+      throw new ForbiddenException(
+        'You can only grant access to users who share a team with you',
+      );
+    }
+  }
+
   async listUserAccess(assetId: string): Promise<AssetAccess[]> {
     await this.findOne(assetId);
     return this.listAccessBySKPrefix(assetId, 'USER#');
@@ -416,9 +513,13 @@ export class AssetService {
   async addUserAccess(
     assetId: string,
     email: string,
-    grantedBy?: string,
+    actor: JwtPayload,
   ): Promise<void> {
     await this.findOne(assetId);
+    if (!actor.isAdmin) {
+      await this.verifyActorHasAssetAccess(assetId, actor);
+      await this.verifyTargetUserInActorTeams(email, actor);
+    }
     await this.dynamoDBClient.send(
       new PutItemCommand({
         TableName: this.tableName,
@@ -426,7 +527,7 @@ export class AssetService {
           PK: `ASSET#${assetId}`,
           SK: `USER#${email}`,
           grantedAt: new Date().toISOString(),
-          ...(grantedBy && { grantedBy }),
+          grantedBy: actor.username,
         }),
       }),
     );
@@ -450,9 +551,17 @@ export class AssetService {
   async addTeamAccess(
     assetId: string,
     teamName: string,
-    grantedBy?: string,
+    actor: JwtPayload,
   ): Promise<void> {
     await this.findOne(assetId);
+    if (!actor.isAdmin) {
+      await this.verifyActorHasAssetAccess(assetId, actor);
+      if (!actor.groups?.includes(teamName)) {
+        throw new ForbiddenException(
+          'You can only grant access to teams you belong to',
+        );
+      }
+    }
     await this.dynamoDBClient.send(
       new PutItemCommand({
         TableName: this.tableName,
@@ -460,7 +569,7 @@ export class AssetService {
           PK: `ASSET#${assetId}`,
           SK: `TEAM#${teamName}`,
           grantedAt: new Date().toISOString(),
-          ...(grantedBy && { grantedBy }),
+          grantedBy: actor.username,
         }),
       }),
     );

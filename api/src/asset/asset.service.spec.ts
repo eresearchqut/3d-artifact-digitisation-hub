@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { S3Client } from '@aws-sdk/client-s3';
+import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
 import { AssetService } from './asset.service';
 
 describe('AssetService', () => {
@@ -24,6 +25,12 @@ describe('AssetService', () => {
         },
         {
           provide: S3Client,
+          useValue: {
+            send: jest.fn(),
+          },
+        },
+        {
+          provide: CognitoIdentityProviderClient,
           useValue: {
             send: jest.fn(),
           },
