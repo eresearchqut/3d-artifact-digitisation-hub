@@ -179,7 +179,7 @@ function ShareRow({
 
   return (
     <Box borderWidth="1px" borderRadius="md" p={4} bg="bg.subtle">
-      <Flex justify="space-between" align="flex-start" mb={expanded ? 4 : 0}>
+      <Flex justify="space-between" align="flex-start" mb={expanded ? 4 : 0} wrap="wrap" gap={2}>
         <Stack gap={1}>
           <HStack>
             <Text fontFamily="mono" fontSize="sm">{share.id}</Text>
@@ -198,7 +198,7 @@ function ShareRow({
             {durationLabel ? ` · Duration: ${durationLabel}` : ''}
           </Text>
           <HStack gap={1}>
-            <Text fontFamily="mono" fontSize="xs" color="fg.muted" truncate maxW="420px">{shareUrl}</Text>
+            <Text fontFamily="mono" fontSize="xs" color="fg.muted" truncate maxW={{ base: '180px', sm: '280px', md: '420px' }}>{shareUrl}</Text>
             <Button variant="ghost" size="xs" onClick={() => navigator.clipboard.writeText(shareUrl)} aria-label="Copy share URL">
               <Copy size={12} />
             </Button>
@@ -384,12 +384,12 @@ export const AssetDetailPage: React.FC = () => {
   return (
     <Stack gap={6}>
       {/* Header */}
-      <Flex align="center" gap={3}>
+      <Flex align="center" gap={3} wrap="wrap">
         <Button variant="ghost" size="sm" onClick={() => navigate('/asset')}>
           <ArrowLeft /> Assets
         </Button>
         <Separator orientation="vertical" h="4" />
-        <Heading size="xl">{filename}</Heading>
+        <Heading size={{ base: 'lg', md: 'xl' }}>{filename}</Heading>
       </Flex>
 
       {/* Asset info */}

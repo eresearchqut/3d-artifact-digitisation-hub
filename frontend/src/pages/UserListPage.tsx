@@ -132,7 +132,7 @@ export const UserListPage: React.FC = () => {
   };
 
   const columns: Column<User>[] = [
-    { key: 'id', header: 'ID', render: (user) => <Text color="fg.muted" fontFamily="mono">{user.id}</Text> },
+    { key: 'id', header: 'ID', hideBelow: 'lg', render: (user) => <Text color="fg.muted" fontFamily="mono">{user.id}</Text> },
     {
       key: 'email',
       header: 'Email',
@@ -210,8 +210,8 @@ export const UserListPage: React.FC = () => {
 
   return (
     <Stack gap={6}>
-      <Flex justify="space-between" align="center" id="user-list-heading">
-        <Heading size="2xl" color="fg">Users</Heading>
+      <Flex justify="space-between" align="center" id="user-list-heading" wrap="wrap" gap={3}>
+        <Heading size={{ base: 'xl', md: '2xl' }} color="fg">Users</Heading>
         <Button id="user-create-btn" onClick={handleCreate}>
           <Plus size={20} />
           Add User

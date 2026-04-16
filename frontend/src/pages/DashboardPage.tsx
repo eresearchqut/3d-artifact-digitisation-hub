@@ -52,7 +52,7 @@ export const DashboardPage: React.FC = () => {
     <Stack gap={8}>
       {/* Header */}
       <Stack gap={2} id="dashboard-heading">
-        <Heading size="2xl" color="fg">3D Artifact Digitisation Hub — Management Console</Heading>
+        <Heading size={{ base: 'xl', md: '2xl' }} color="fg">3D Artifact Digitisation Hub — Management Console</Heading>
         <Text color="fg.muted" fontSize="lg">
           Upload, manage, and securely share 3D scanned artefacts.
         </Text>

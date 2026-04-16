@@ -104,6 +104,7 @@ export const TeamListPage: React.FC = () => {
     {
       key: 'description',
       header: 'Description',
+      hideBelow: 'md',
       render: (team) => <Text color="fg.muted">{team.description || '-'}</Text>,
     },
     {
@@ -137,8 +138,8 @@ export const TeamListPage: React.FC = () => {
 
   return (
     <Stack gap={6}>
-      <Flex justify="space-between" align="center" id="team-list-heading">
-        <Heading size="2xl" color="fg">Teams</Heading>
+      <Flex justify="space-between" align="center" id="team-list-heading" wrap="wrap" gap={3}>
+        <Heading size={{ base: 'xl', md: '2xl' }} color="fg">Teams</Heading>
         <Button id="team-create-btn" onClick={() => setIsCreateOpen(true)}>
           <Plus size={20} />
           Add Team

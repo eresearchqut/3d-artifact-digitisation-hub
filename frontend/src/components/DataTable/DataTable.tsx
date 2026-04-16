@@ -9,6 +9,8 @@ export interface Column<T> {
   textAlign?: 'left' | 'right' | 'center';
   cellStyle?: React.CSSProperties;
   headerStyle?: React.CSSProperties;
+  /** Hide this column on screens narrower than this breakpoint */
+  hideBelow?: 'sm' | 'md' | 'lg';
 }
 
 export interface DataTablePaginationProps {
@@ -47,44 +49,48 @@ export function DataTable<T>({
 
   return (
     <Box>
-      <Table.Root>
-        <Table.Header>
-          <Table.Row>
-            {columns.map((col, idx) => (
-              <Table.ColumnHeader
-                key={String(col.key) + idx}
-                textAlign={col.textAlign}
-                style={col.headerStyle}
-              >
-                {col.header}
-              </Table.ColumnHeader>
-            ))}
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {(!data || data.length === 0) ? (
+      <Box overflowX="auto">
+        <Table.Root>
+          <Table.Header>
             <Table.Row>
-              <Table.Cell colSpan={columns.length}>
-                {emptyMessage}
-              </Table.Cell>
+              {columns.map((col, idx) => (
+                <Table.ColumnHeader
+                  key={String(col.key) + idx}
+                  textAlign={col.textAlign}
+                  style={col.headerStyle}
+                  display={col.hideBelow ? { base: 'none', [col.hideBelow]: 'table-cell' } : undefined}
+                >
+                  {col.header}
+                </Table.ColumnHeader>
+              ))}
             </Table.Row>
-          ) : (
-            data.map((row) => (
-              <Table.Row key={keyExtractor(row)}>
-                {columns.map((col, idx) => (
-                  <Table.Cell
-                    key={String(col.key) + idx}
-                    textAlign={col.textAlign}
-                    style={col.cellStyle}
-                  >
-                    {col.render ? col.render(row) : String(row[col.key as keyof T] ?? '')}
-                  </Table.Cell>
-                ))}
+          </Table.Header>
+          <Table.Body>
+            {(!data || data.length === 0) ? (
+              <Table.Row>
+                <Table.Cell colSpan={columns.length}>
+                  {emptyMessage}
+                </Table.Cell>
               </Table.Row>
-            ))
-          )}
-        </Table.Body>
-      </Table.Root>
+            ) : (
+              data.map((row) => (
+                <Table.Row key={keyExtractor(row)}>
+                  {columns.map((col, idx) => (
+                    <Table.Cell
+                      key={String(col.key) + idx}
+                      textAlign={col.textAlign}
+                      style={col.cellStyle}
+                      display={col.hideBelow ? { base: 'none', [col.hideBelow]: 'table-cell' } : undefined}
+                    >
+                      {col.render ? col.render(row) : String(row[col.key as keyof T] ?? '')}
+                    </Table.Cell>
+                  ))}
+                </Table.Row>
+              ))
+            )}
+          </Table.Body>
+        </Table.Root>
+      </Box>
 
       {pagination && (
         <Flex justify="space-between" align="center" mt={4} px={1} flexWrap="wrap" gap={2}>

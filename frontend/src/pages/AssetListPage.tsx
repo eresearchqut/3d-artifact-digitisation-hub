@@ -151,7 +151,7 @@ export const AssetListPage: React.FC = () => {
   };
 
   const columns: Column<Asset>[] = [
-    { key: 'id', header: 'ID', render: (asset) => <Text color="fg.muted" fontFamily="mono" fontSize="xs">{asset.id}</Text> },
+    { key: 'id', header: 'ID', hideBelow: 'lg', render: (asset) => <Text color="fg.muted" fontFamily="mono" fontSize="xs">{asset.id}</Text> },
     {
       key: 'name',
       header: 'Name',
@@ -160,16 +160,19 @@ export const AssetListPage: React.FC = () => {
     {
       key: 'size',
       header: 'Size',
+      hideBelow: 'md',
       render: (asset) => <span>{formatFileSize(asset.metadata?.size)}</span>,
     },
     {
       key: 'lastmodified',
       header: 'Last Modified',
+      hideBelow: 'md',
       render: (asset) => <span>{formatLastModified(asset.metadata?.lastmodified)}</span>,
     },
     {
       key: 'uploadedBy',
       header: 'Uploaded By',
+      hideBelow: 'lg',
       render: (asset) => <span>{asset.uploadedBy ?? '—'}</span>,
     },
     {
@@ -221,8 +224,8 @@ export const AssetListPage: React.FC = () => {
 
   return (
     <Stack gap={6}>
-      <Flex justify="space-between" align="center" id="asset-list-heading">
-        <Heading size="2xl" color="fg">Assets</Heading>
+      <Flex justify="space-between" align="center" id="asset-list-heading" wrap="wrap" gap={3}>
+        <Heading size={{ base: 'xl', md: '2xl' }} color="fg">Assets</Heading>
         <Button id="asset-upload-btn" onClick={() => setIsUploadOpen(true)}>
           <Plus />
           Upload Asset
