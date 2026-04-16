@@ -272,11 +272,11 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     const createResponse = await request(app.getHttpServer())
       .post('/team')
       .set(auth)
-      .send({ name: 'Test Team' })
+      .send({ name: 'Test-Team' })
       .expect(201);
 
     const team = createResponse.body;
-    expect(team.name).toBe('Test Team');
+    expect(team.name).toBe('Test-Team');
 
     // 2. Find All (GET)
     const findAllResponse = await request(app.getHttpServer())
@@ -323,7 +323,7 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     const teamResponse = await request(app.getHttpServer())
       .post('/team')
       .set(auth)
-      .send({ name: 'E2E Test Team' })
+      .send({ name: 'E2E-Test-Team' })
       .expect(201);
     const team = teamResponse.body;
 
@@ -736,18 +736,24 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
     const adminAuth = () => ({ Authorization: `Bearer ${testIdToken}` });
     const nonAdminAuth = () => ({ Authorization: `Bearer ${nonAdminIdToken}` });
 
-    it('non-admin cannot access GET /user (403)', async () => {
-      await request(app.getHttpServer())
+    it('non-admin GET /user returns 200 with filtered results (empty, no teams yet)', async () => {
+      const res = await request(app.getHttpServer())
         .get('/user')
         .set(nonAdminAuth())
-        .expect(403);
+        .expect(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      // nonAdminIdToken was issued before team membership, so groups = [] → empty list
+      expect(res.body).toEqual([]);
     });
 
-    it('non-admin cannot access GET /team (403)', async () => {
-      await request(app.getHttpServer())
+    it('non-admin GET /team returns 200 with filtered results (empty, no teams yet)', async () => {
+      const res = await request(app.getHttpServer())
         .get('/team')
         .set(nonAdminAuth())
-        .expect(403);
+        .expect(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      // Same reason as above — no groups in token yet
+      expect(res.body).toEqual([]);
     });
 
     it('unauthenticated request to GET /user returns 401', async () => {
@@ -825,6 +831,295 @@ describe('AppController (e2e) with Testcontainers Integration', () => {
 
       const names: string[] = response.body.map((t: any) => t.name);
       expect(names).not.toContain('administrators');
+    });
+  });
+
+  // ─── Non-admin filtering & access-grant authorisation ───────────────────────
+  //
+  // These tests cover:
+  //   1. GET /team and GET /user return filtered results for non-admins
+  //   2. Non-admins can grant asset/share access to their own teams and team members
+  //   3. Non-admins are blocked from granting access to teams/users outside their teams
+  //   4. Non-admins are blocked from granting access to assets they don't own/access
+  //
+  // A fresh Cognito token is obtained for the non-admin *after* they are added to
+  // a team, so the JWT carries the correct cognito:groups claim.
+
+  describe('Non-admin filtering and access-grant authorisation', () => {
+    const adminAuth = () => ({ Authorization: `Bearer ${testIdToken}` });
+    let nonAdminTeamToken: string;
+    let nonAdminAssetId: string;
+    let nonAdminShareId: string;
+    const sharedTeamName = 'e2e-nonadmin-team';
+    const teamMemberEmail = 'e2e-team-member@example.com';
+    const outsideUserEmail = 'e2e-outside-user@example.com';
+
+    beforeAll(async () => {
+      const cognitoClient = app.get(CognitoIdentityProviderClient);
+      const configService = app.get(ConfigService);
+      const clientId = configService.get<string>('USER_POOL_CLIENT_ID');
+
+      // Create the shared team and add non-admin to it
+      await request(app.getHttpServer())
+        .post('/team')
+        .set(adminAuth())
+        .send({ name: sharedTeamName })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/team/${sharedTeamName}/user/${encodeURIComponent(nonAdminEmail)}`)
+        .set(adminAuth())
+        .expect(201);
+
+      // Create a team member who shares the team with the non-admin
+      await request(app.getHttpServer())
+        .post('/user')
+        .set(adminAuth())
+        .send({ email: teamMemberEmail })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/team/${sharedTeamName}/user/${encodeURIComponent(teamMemberEmail)}`)
+        .set(adminAuth())
+        .expect(201);
+
+      // Create an outside user NOT in any shared team
+      await request(app.getHttpServer())
+        .post('/user')
+        .set(adminAuth())
+        .send({ email: outsideUserEmail })
+        .expect(201);
+
+      // Re-authenticate the non-admin to get a fresh JWT with cognito:groups
+      const authResult = await cognitoClient.send(
+        new InitiateAuthCommand({
+          AuthFlow: 'USER_PASSWORD_AUTH',
+          ClientId: clientId,
+          AuthParameters: {
+            USERNAME: nonAdminEmail,
+            PASSWORD: nonAdminPassword,
+          },
+        }),
+      );
+      nonAdminTeamToken = authResult.AuthenticationResult?.IdToken ?? '';
+
+      // Admin creates an asset and grants the non-admin access to it
+      const uploadRes = await request(app.getHttpServer())
+        .post('/asset/upload')
+        .set(adminAuth())
+        .send({ metadata: { name: 'nonadmin-owned.ply' } })
+        .expect(201);
+      nonAdminAssetId = uploadRes.body.id;
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${nonAdminAssetId}/user/${encodeURIComponent(nonAdminEmail)}`,
+        )
+        .set(adminAuth())
+        .expect(201);
+
+      // Create a share on that asset
+      const shareRes = await request(app.getHttpServer())
+        .post(`/asset/${nonAdminAssetId}/share`)
+        .set(adminAuth())
+        .send({ isPublic: false })
+        .expect(201);
+      nonAdminShareId = shareRes.body.id;
+    });
+
+    afterAll(async () => {
+      await Promise.allSettled([
+        request(app.getHttpServer())
+          .delete(`/asset/${nonAdminAssetId}`)
+          .set(adminAuth()),
+        request(app.getHttpServer())
+          .delete(`/user/${encodeURIComponent(teamMemberEmail)}`)
+          .set(adminAuth()),
+        request(app.getHttpServer())
+          .delete(`/user/${encodeURIComponent(outsideUserEmail)}`)
+          .set(adminAuth()),
+        request(app.getHttpServer())
+          .delete(`/team/${sharedTeamName}`)
+          .set(adminAuth()),
+      ]);
+    });
+
+    // ── Filtering ─────────────────────────────────────────────────────────────
+
+    it('non-admin GET /team returns only teams they belong to', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/team')
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      const names: string[] = res.body.map((t: any) => t.name);
+      expect(names).toContain(sharedTeamName);
+      expect(names).not.toContain('administrators');
+    });
+
+    it('non-admin GET /user returns only users from their teams', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/user')
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      const emails: string[] = res.body.map((u: any) => u.email);
+      expect(emails).toContain(teamMemberEmail);
+      expect(emails).not.toContain(outsideUserEmail);
+    });
+
+    it('non-admin GET /asset returns only assets they have access to', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/asset')
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      const ids: string[] = res.body.map((a: any) => a.id);
+      expect(ids).toContain(nonAdminAssetId);
+    });
+
+    // ── Asset access grants ───────────────────────────────────────────────────
+
+    it('non-admin CAN add a team they belong to on an asset they have access to', async () => {
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${nonAdminAssetId}/team/${encodeURIComponent(sharedTeamName)}`,
+        )
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(201);
+
+      // verify it appears, then revoke so later tests start clean
+      const listRes = await request(app.getHttpServer())
+        .get(`/asset/${nonAdminAssetId}/team`)
+        .set(adminAuth())
+        .expect(200);
+      expect(listRes.body.map((a: any) => a.id)).toContain(sharedTeamName);
+
+      await request(app.getHttpServer())
+        .delete(
+          `/asset/${nonAdminAssetId}/team/${encodeURIComponent(sharedTeamName)}`,
+        )
+        .set(adminAuth());
+    });
+
+    it('non-admin CANNOT add a team they are NOT a member of to an asset (403)', async () => {
+      await request(app.getHttpServer())
+        .post(`/asset/${nonAdminAssetId}/team/some-other-team`)
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(403);
+    });
+
+    it('non-admin CAN add a user who shares their team to an asset they have access to', async () => {
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${nonAdminAssetId}/user/${encodeURIComponent(teamMemberEmail)}`,
+        )
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(201);
+
+      const listRes = await request(app.getHttpServer())
+        .get(`/asset/${nonAdminAssetId}/user`)
+        .set(adminAuth())
+        .expect(200);
+      expect(listRes.body.map((a: any) => a.id)).toContain(teamMemberEmail);
+
+      await request(app.getHttpServer())
+        .delete(
+          `/asset/${nonAdminAssetId}/user/${encodeURIComponent(teamMemberEmail)}`,
+        )
+        .set(adminAuth());
+    });
+
+    it('non-admin CANNOT add a user NOT in their teams to an asset (403)', async () => {
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${nonAdminAssetId}/user/${encodeURIComponent(outsideUserEmail)}`,
+        )
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(403);
+    });
+
+    it('non-admin CANNOT add access to an asset they do not have access to (403)', async () => {
+      const uploadRes = await request(app.getHttpServer())
+        .post('/asset/upload')
+        .set(adminAuth())
+        .send({ metadata: { name: 'unowned.ply' } })
+        .expect(201);
+      const unownedId = uploadRes.body.id;
+
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${unownedId}/team/${encodeURIComponent(sharedTeamName)}`,
+        )
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .delete(`/asset/${unownedId}`)
+        .set(adminAuth());
+    });
+
+    // ── Share access grants ───────────────────────────────────────────────────
+
+    it('non-admin CAN add their team to a share on an asset they have access to', async () => {
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${nonAdminAssetId}/share/${nonAdminShareId}/team/${encodeURIComponent(sharedTeamName)}`,
+        )
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(201);
+
+      const listRes = await request(app.getHttpServer())
+        .get(`/asset/${nonAdminAssetId}/share/${nonAdminShareId}/team`)
+        .set(adminAuth())
+        .expect(200);
+      expect(listRes.body.map((a: any) => a.id)).toContain(sharedTeamName);
+
+      await request(app.getHttpServer())
+        .delete(
+          `/asset/${nonAdminAssetId}/share/${nonAdminShareId}/team/${encodeURIComponent(sharedTeamName)}`,
+        )
+        .set(adminAuth());
+    });
+
+    it('non-admin CAN add a team member to a share on an asset they have access to', async () => {
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${nonAdminAssetId}/share/${nonAdminShareId}/user/${encodeURIComponent(teamMemberEmail)}`,
+        )
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(201);
+
+      const listRes = await request(app.getHttpServer())
+        .get(`/asset/${nonAdminAssetId}/share/${nonAdminShareId}/user`)
+        .set(adminAuth())
+        .expect(200);
+      expect(listRes.body.map((a: any) => a.id)).toContain(teamMemberEmail);
+
+      await request(app.getHttpServer())
+        .delete(
+          `/asset/${nonAdminAssetId}/share/${nonAdminShareId}/user/${encodeURIComponent(teamMemberEmail)}`,
+        )
+        .set(adminAuth());
+    });
+
+    it('non-admin CANNOT add a user not in their teams to a share (403)', async () => {
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${nonAdminAssetId}/share/${nonAdminShareId}/user/${encodeURIComponent(outsideUserEmail)}`,
+        )
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(403);
+    });
+
+    it('non-admin CANNOT add a team they are not in to a share (403)', async () => {
+      await request(app.getHttpServer())
+        .post(
+          `/asset/${nonAdminAssetId}/share/${nonAdminShareId}/team/some-other-team`,
+        )
+        .set({ Authorization: `Bearer ${nonAdminTeamToken}` })
+        .expect(403);
     });
   });
 

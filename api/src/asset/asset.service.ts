@@ -27,11 +27,11 @@ import {
 } from '@aws-sdk/client-s3';
 import {
   CognitoIdentityProviderClient,
-  AdminListGroupsForUserCommand,
+  ListUsersInGroupCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { JwtPayload } from '../auth/auth.constants';
+import { JwtPayload, ADMINISTRATORS_GROUP } from '../auth/auth.constants';
 import { Asset, AssetStatus } from './asset.model';
 import { AssetAccess } from './asset-access.model';
 
@@ -482,27 +482,38 @@ export class AssetService {
     actor: JwtPayload,
   ): Promise<void> {
     if (actor.isAdmin) return;
-    if (!actor.groups?.length) {
+    const actorTeams = (actor.groups ?? []).filter(
+      (g) => g.toLowerCase() !== ADMINISTRATORS_GROUP,
+    );
+    if (!actorTeams.length) {
       throw new ForbiddenException(
         'You must be a member of a team to grant access to other users',
       );
     }
     const userPoolId = this.configService.get<string>('USER_POOL_ID');
-    const response = await this.cognitoClient.send(
-      new AdminListGroupsForUserCommand({
-        UserPoolId: userPoolId,
-        Username: targetEmail,
-      }),
-    );
-    const targetGroups = new Set(
-      (response.Groups ?? []).map((g) => g.GroupName),
-    );
-    const hasCommonTeam = actor.groups.some((g) => targetGroups.has(g));
-    if (!hasCommonTeam) {
-      throw new ForbiddenException(
-        'You can only grant access to users who share a team with you',
-      );
+    for (const teamName of actorTeams) {
+      let token: string | undefined;
+      do {
+        const r = await this.cognitoClient.send(
+          new ListUsersInGroupCommand({
+            UserPoolId: userPoolId,
+            GroupName: teamName,
+            Limit: 60,
+            NextToken: token,
+          }),
+        );
+        const found = (r.Users ?? []).some((u) =>
+          u.Attributes?.some(
+            (a) => a.Name === 'email' && a.Value === targetEmail,
+          ),
+        );
+        if (found) return;
+        token = r.NextToken;
+      } while (token);
     }
+    throw new ForbiddenException(
+      'You can only grant access to users who share a team with you',
+    );
   }
 
   async listUserAccess(assetId: string): Promise<AssetAccess[]> {
