@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
 import { Amplify } from 'aws-amplify';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { fetchAuthSession, signOut as amplifySignOut } from 'aws-amplify/auth';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { Heading, Flex, Box, Spinner } from '@chakra-ui/react';
 import { Layout } from './components/Layout/Layout';
@@ -106,15 +106,16 @@ function App() {
 
 /** Reads auth state and renders either the custom login page or the app. */
 function AuthenticatedApp() {
-  const { authStatus, signOut } = useAuthenticator(ctx => [ctx.authStatus, ctx.signOut]);
+  const { authStatus } = useAuthenticator(ctx => [ctx.authStatus]);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [email, setEmail] = useState<string | undefined>(undefined);
 
-  const handleSignOut = useCallback(() => {
+  const handleSignOut = useCallback(async () => {
     queryClient.clear();
-    signOut();
-  }, [queryClient, signOut]);
+    await amplifySignOut();
+    window.location.replace('/');
+  }, [queryClient]);
 
   useEffect(() => {
     if (authStatus !== 'authenticated') return;
