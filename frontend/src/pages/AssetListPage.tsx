@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { assetService, getBaseUrl } from '../services/api.service';
 import { AssetStatus } from '../services/types';
-import { Plus, Trash2, Globe, Settings2 } from 'lucide-react';
+import { Plus, Trash2, Globe, Settings2, Search, X } from 'lucide-react';
 import { DataTable, Column } from '../components/DataTable/DataTable';
-import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Text, Spinner } from '@chakra-ui/react';
+import { Badge, Button, HStack, Heading, Flex, Box, Stack, Dialog, Text, Spinner, Input, InputGroup } from '@chakra-ui/react';
 import { toaster } from '../components/ui/toaster';
 import { FilePicker } from '../components/FilePicker/FilePicker';
 import { usePageTour } from '../hooks/usePageTour';
@@ -59,9 +59,9 @@ export const AssetListPage: React.FC = () => {
   const steps = useMemo(() => ASSET_LIST_TOUR_STEPS, []);
   usePageTour(steps);
 
-  const { data: allAssets, isLoading, error } = useQuery({
+  const { data: allAssets, isLoading, error } = useQuery<Asset[]>({
     queryKey: ['assets'],
-    queryFn: () => assetService.findAll(),
+    queryFn: () => assetService.findAll() as Promise<Asset[]>,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return false;
@@ -69,8 +69,63 @@ export const AssetListPage: React.FC = () => {
     },
   });
 
-  const { page, pageNumber, pageSize, total, hasPrev, hasMore, goNext, goPrev, changePageSize } =
-    useClientPagination(allAssets, 10);
+  const [search, setSearch] = useState('');
+
+  const [sortKey, setSortKey] = useState<string>('lastmodified');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (key: string, dir: 'asc' | 'desc') => {
+    setSortKey(key);
+    setSortDir(dir);
+  };
+
+  const sortedAssets = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const filtered = allAssets
+      ? allAssets.filter((a) => {
+          if (!query) return true;
+          return (
+            (a.metadata?.name ?? '').toLowerCase().includes(query) ||
+            (a.uploadedBy ?? '').toLowerCase().includes(query)
+          );
+        })
+      : allAssets;
+    if (!filtered) return filtered;
+    return [...filtered].sort((a, b) => {
+      let aVal: string | number = 0;
+      let bVal: string | number = 0;
+      switch (sortKey) {
+        case 'name':
+          aVal = a.metadata?.name ?? '';
+          bVal = b.metadata?.name ?? '';
+          break;
+        case 'size':
+          aVal = Number(a.metadata?.size ?? 0);
+          bVal = Number(b.metadata?.size ?? 0);
+          break;
+        case 'lastmodified':
+          aVal = Number(a.metadata?.lastmodified ?? 0);
+          bVal = Number(b.metadata?.lastmodified ?? 0);
+          break;
+        case 'uploadedBy':
+          aVal = a.uploadedBy ?? '';
+          bVal = b.uploadedBy ?? '';
+          break;
+        case 'status':
+          aVal = a.status ?? '';
+          bVal = b.status ?? '';
+          break;
+      }
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [allAssets, sortKey, sortDir, search]);
+
+  const { page, pageNumber, pageSize, total, hasPrev, hasMore, goNext, goPrev, changePageSize, reset } =
+    useClientPagination(sortedAssets, 10);
+
+  useEffect(() => { reset(); }, [search]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => assetService.remove(id),
@@ -155,29 +210,34 @@ export const AssetListPage: React.FC = () => {
     {
       key: 'name',
       header: 'Name',
+      sortable: true,
       render: (asset) => <span>{asset.metadata?.name ?? '—'}</span>,
     },
     {
       key: 'size',
       header: 'Size',
       hideBelow: 'md',
+      sortable: true,
       render: (asset) => <span>{formatFileSize(asset.metadata?.size)}</span>,
     },
     {
       key: 'lastmodified',
       header: 'Last Modified',
       hideBelow: 'md',
+      sortable: true,
       render: (asset) => <span>{formatLastModified(asset.metadata?.lastmodified)}</span>,
     },
     {
       key: 'uploadedBy',
       header: 'Uploaded By',
       hideBelow: 'lg',
+      sortable: true,
       render: (asset) => <span>{asset.uploadedBy ?? '—'}</span>,
     },
     {
       key: 'status',
       header: 'Status',
+      sortable: true,
       render: (asset) => {
         if (!asset.status) return <span>—</span>;
         const cfg = STATUS_CONFIG[asset.status];
@@ -224,9 +284,24 @@ export const AssetListPage: React.FC = () => {
 
   return (
     <Stack gap={6}>
-      <Flex justify="space-between" align="center" id="asset-list-heading" wrap="wrap" gap={3}>
-        <Heading size={{ base: 'xl', md: '2xl' }} color="fg">Assets</Heading>
-        <Button id="asset-upload-btn" onClick={() => setIsUploadOpen(true)}>
+      <Flex align="center" id="asset-list-heading" wrap="wrap" gap={3}>
+        <Heading size={{ base: 'xl', md: '2xl' }} color="fg" flexShrink={0}>Assets</Heading>
+        <Box flex={1} minW="0">
+          <InputGroup startElement={<Search size={16} />} endElement={
+            search ? (
+              <Box as="button" onClick={() => setSearch('')} color="fg.muted" _hover={{ color: 'fg' }} display="flex" alignItems="center">
+                <X size={14} />
+              </Box>
+            ) : undefined
+          }>
+            <Input
+              placeholder="Search by name or uploaded by…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </InputGroup>
+        </Box>
+        <Button id="asset-upload-btn" onClick={() => setIsUploadOpen(true)} flexShrink={0}>
           <Plus />
           Upload Asset
         </Button>
@@ -239,6 +314,9 @@ export const AssetListPage: React.FC = () => {
           columns={columns}
           keyExtractor={(asset) => asset.id}
           emptyMessage="No assets found."
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={handleSort}
           pagination={{
             hasPrev,
             hasMore,

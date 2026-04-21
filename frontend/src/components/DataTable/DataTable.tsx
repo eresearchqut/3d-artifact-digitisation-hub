@@ -1,5 +1,6 @@
 import React from 'react';
 import { Table, Box, HStack, Text, Flex } from '@chakra-ui/react';
+import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Button } from '../Button/Button';
 
 export interface Column<T> {
@@ -11,6 +12,8 @@ export interface Column<T> {
   headerStyle?: React.CSSProperties;
   /** Hide this column on screens narrower than this breakpoint */
   hideBelow?: 'sm' | 'md' | 'lg';
+  /** Enable click-to-sort on this column */
+  sortable?: boolean;
 }
 
 export interface DataTablePaginationProps {
@@ -33,6 +36,12 @@ export interface DataTableProps<T> {
   emptyMessage?: string;
   keyExtractor: (row: T) => string | number;
   pagination?: DataTablePaginationProps;
+  /** Currently active sort column key */
+  sortKey?: string;
+  /** Currently active sort direction */
+  sortDir?: 'asc' | 'desc';
+  /** Called when the user clicks a sortable column header */
+  onSort?: (key: string, dir: 'asc' | 'desc') => void;
 }
 
 export function DataTable<T>({
@@ -41,11 +50,31 @@ export function DataTable<T>({
   emptyMessage = 'No data found.',
   keyExtractor,
   pagination,
+  sortKey,
+  sortDir,
+  onSort,
 }: DataTableProps<T>) {
   const totalPages =
     pagination?.total !== undefined && pagination.pageSize
       ? Math.ceil(pagination.total / pagination.pageSize)
       : undefined;
+
+  const handleHeaderClick = (col: Column<T>) => {
+    if (!col.sortable || !onSort) return;
+    const key = String(col.key);
+    if (sortKey === key) {
+      onSort(key, sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      onSort(key, 'asc');
+    }
+  };
+
+  const SortIcon = ({ col }: { col: Column<T> }) => {
+    if (!col.sortable) return null;
+    const key = String(col.key);
+    if (sortKey !== key) return <ArrowUpDown size={14} style={{ opacity: 0.4 }} />;
+    return sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
+  };
 
   return (
     <Box>
@@ -59,8 +88,19 @@ export function DataTable<T>({
                   textAlign={col.textAlign}
                   style={col.headerStyle}
                   display={col.hideBelow ? { base: 'none', [col.hideBelow]: 'table-cell' } : undefined}
+                  onClick={() => handleHeaderClick(col)}
+                  cursor={col.sortable ? 'pointer' : undefined}
+                  userSelect={col.sortable ? 'none' : undefined}
+                  _hover={col.sortable ? { bg: 'bg.subtle' } : undefined}
                 >
-                  {col.header}
+                  {col.sortable ? (
+                    <HStack gap={1} display="inline-flex">
+                      <span>{col.header}</span>
+                      <SortIcon col={col} />
+                    </HStack>
+                  ) : (
+                    col.header
+                  )}
                 </Table.ColumnHeader>
               ))}
             </Table.Row>
