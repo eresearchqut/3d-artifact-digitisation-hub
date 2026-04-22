@@ -10,7 +10,8 @@
     "watch": "tsc -w",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "cdk": "cdk",
-    "deploy": "cdk deploy"
+    "deploy": "cdk deploy",
+    "deploy:oidc": "cdk --app 'npx ts-node bin/oidc.ts' deploy"
   },
   "dependencies": {
     "aws-cdk-lib": "2.248.0",
