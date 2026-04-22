@@ -13,7 +13,6 @@ jobs:
   deploy:
     name: CDK Deploy
     runs-on: ubuntu-latest
-    environment: production
 
     steps:
       - name: Checkout
@@ -41,4 +40,6 @@ jobs:
 
       - name: Deploy CDK stack
         working-directory: infra
-        run: npx cdk deploy --require-approval never --context "tags=${{ vars.CDK_TAGS || '{}' }}"
+        env:
+          CDK_TAGS: ${{ vars.CDK_TAGS || '{}' }}
+        run: npx cdk deploy --require-approval never

@@ -26,9 +26,9 @@ new OidcStack(app, 'DigitisationHubOidcStack', {
     {
       owner: 'eresearchqut',
       repo: '3d-artifact-digitisation-hub',
-      // Restrict to the main branch and the production environment.
-      // Expand to '*' to allow any branch (e.g. for branch-based deploy previews).
-      filter: 'ref:refs/heads/main',
+      // '*' permits any branch, tag, or environment from this repo.
+      // Tighten this (e.g. 'ref:refs/heads/main') once deploys are working.
+      filter: '*',
     },
   ],
 });

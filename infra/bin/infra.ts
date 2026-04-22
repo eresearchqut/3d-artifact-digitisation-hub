@@ -5,16 +5,16 @@ import { InfraStack } from '../lib/infra-stack';
 
 const app = new cdk.App();
 
-// Tags are read from CDK context and applied to every taggable resource in the
-// stack (Lambda, S3, DynamoDB, Cognito, CloudFront, etc.), making them available
-// for cost allocation reports and resource discovery.
+// Tags are injected via the CDK_TAGS environment variable as a JSON string,
+// avoiding shell-quoting issues with --context.
+// Define them as a GitHub Actions variable (vars.CDK_TAGS):
+//   {"CostCentre":"12345","Project":"DigitisationHub"}
 //
-// Define tags in cdk.json under context.tags:
-//   "tags": { "CostCentre": "12345", "Project": "DigitisationHub" }
-//
-// Or supply them at deploy time (overrides cdk.json values):
-//   cdk deploy --context tags='{"CostCentre":"12345","Project":"DigitisationHub"}'
-const tags = (app.node.tryGetContext('tags') ?? {}) as Record<string, string>;
+// For manual deploys:
+//   CDK_TAGS='{"CostCentre":"12345"}' cdk deploy
+const tags: Record<string, string> = process.env.CDK_TAGS
+  ? JSON.parse(process.env.CDK_TAGS)
+  : {};
 
 new InfraStack(app, 'DigitisationHubStack', {
   env: {
