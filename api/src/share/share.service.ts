@@ -1,24 +1,24 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
-  ForbiddenException,
   StreamableFile,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import {
-  DynamoDBClient,
-  PutItemCommand,
-  GetItemCommand,
   DeleteItemCommand,
+  DynamoDBClient,
+  GetItemCommand,
+  PutItemCommand,
   QueryCommand,
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import {
-  Share,
-  ShareAccess,
   CreateShareDto,
   DurationUnit,
+  Share,
+  ShareAccess,
 } from './share.model';
 import { AssetService } from '../asset/asset.service';
 import { JwtPayload } from '../auth/auth.constants';
@@ -277,6 +277,7 @@ export class ShareService {
     filename: string,
     username?: string,
     token?: string,
+    groups?: string[],
   ) {
     // Resolve assetId from the share lookup record
     const lookup = await this.dynamoDBClient.send(
@@ -302,7 +303,8 @@ export class ShareService {
           'Authentication required to access this share',
         );
       }
-      const [assetAccess, shareAccess] = await Promise.all([
+
+      const [assetAccess, shareAccess, ...teamResults] = await Promise.all([
         this.dynamoDBClient.send(
           new GetItemCommand({
             TableName: this.tableName,
@@ -315,9 +317,19 @@ export class ShareService {
             Key: marshall({ PK: `SHARE#${shareId}`, SK: `USER#${username}` }),
           }),
         ),
+        ...(groups ?? []).map((team) =>
+          this.dynamoDBClient.send(
+            new GetItemCommand({
+              TableName: this.tableName,
+              Key: marshall({ PK: `SHARE#${shareId}`, SK: `TEAM#${team}` }),
+            }),
+          ),
+        ),
       ]);
 
-      if (!assetAccess.Item && !shareAccess.Item) {
+      const hasTeamAccess = teamResults.some((r) => !!r.Item);
+
+      if (!assetAccess.Item && !shareAccess.Item && !hasTeamAccess) {
         throw new ForbiddenException('Access denied');
       }
     }
