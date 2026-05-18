@@ -81,7 +81,15 @@ Browser
 npm install
 ```
 
-### 2. Start local AWS services
+### 2. Build
+
+The local AWS init container deploys the Lambda functions from pre-built zip files. Build before starting Docker:
+
+```bash
+npm run build
+```
+
+### 3. Start local AWS services
 
 ```bash
 cd api
@@ -95,7 +103,7 @@ This starts:
 - **s3manager** on `:8002` — S3 browser UI
 - An `aws-cli` init container that creates the S3 bucket, DynamoDB table, Cognito user pool, and local Lambda functions
 
-### 3. Configure the frontend
+### 4. Configure the frontend
 
 Create `frontend/.env.local` pointing at your local Cognito and API:
 
@@ -106,7 +114,7 @@ VITE_USER_POOL_CLIENT_ID=<clientId> # from cognito-local output
 VITE_AWS_REGION=us-east-1
 ```
 
-### 4. Start the app
+### 5. Start the app
 
 ```bash
 npm start

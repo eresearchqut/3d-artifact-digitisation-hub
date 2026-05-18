@@ -207,6 +207,7 @@ export class ShareViewerController {
       file,
       req.user?.username,
       rawToken || undefined,
+      req.user?.groups,
     );
     if (result.type === 'redirect') {
       res.redirect(302, result.url);
